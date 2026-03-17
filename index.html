@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
+  <title>Frito Pay</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="game">
+    <div class="topbar">
+      <div class="title-row">
+        <div class="title">Frito Pay</div>
+        <div class="round" id="roundLabel">Round 1</div>
+      </div>
+
+      <div class="timer-labels">
+        <div id="timerLabel">Time: 6.0s</div>
+        <div id="targetLabel">Find all the cats</div>
+      </div>
+
+      <div class="progress-shell">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+      <img class="mole-runner" id="moleRunner" src="images/mole.png" alt="" />
+      <img class="trap-runner" id="trapRunner" src="images/trap.png" alt="" />
+      <div class="timeout-flash" id="timeoutFlash">Time's up</div>
+
+      <div class="overlay-panel home-screen show" id="splashPanel">
+        <div class="home-screen-card">
+          <div class="overlay-text" id="splashText">
+            Frito scattered the cats. Rescue them before time runs out.
+          </div>
+          <button class="cta-btn cta-btn-start" id="startBtn">Make Frito Pay!</button>
+        </div>
+      </div>
+
+      <div class="overlay-panel" id="resultPanel">
+        <div class="overlay-title" id="resultTitle">Round Over</div>
+        <div class="overlay-text" id="resultText"></div>
+        <div class="hairball-summary" id="hairballSummary">
+          <img class="hairball-summary-image" src="images/hairball.png" alt="" />
+          <div class="hairball-summary-text" id="hairballSummaryText">Hairballs: 0</div>
+        </div>
+        <div class="hairball-summary" id="timeSummary">
+          <img class="hairball-summary-image" src="images/time.png" alt="" />
+          <div class="hairball-summary-text" id="timeSummaryText">Time: 0 seconds</div>
+        </div>
+        <div class="trap-offer hidden" id="trapOffer">
+          <div class="trap-offer-title">Special Offer</div>
+          <img class="trap-offer-seller" id="trapOfferSeller" src="images/racoon.png" alt="" />
+          <div class="trap-offer-message hidden" id="trapOfferMessage"></div>
+          <div class="trap-offer-note hidden" id="trapOfferNote"></div>
+          <div class="trap-offer-summary hidden" id="trapOfferSummary">
+            <img class="trap-offer-summary-image" id="trapOfferSummaryImage" src="images/trap.png" alt="" />
+            <div class="trap-offer-summary-text" id="trapOfferSummaryText">Trap: 1</div>
+          </div>
+          <div class="trap-offer-rows" id="trapOfferRows"></div>
+          <button class="cta-btn trap-offer-dismiss hidden" id="trapOfferDismissBtn">Oh ok</button>
+        </div>
+        <button class="cta-btn" id="nextBtn">Next Round</button>
+        <button class="cta-btn cta-btn-exit hidden" id="exitBtn">Exit</button>
+        <div class="small-note" id="timeNote"></div>
+      </div>
+    </div>
+
+    <div class="bottombar">
+      <div class="stats">
+        <button class="bottom-exit-btn hidden" id="bottomExitBtn" type="button">Exit</button>
+        <div class="bottom-controls">
+          <button class="mute-toggle hidden" id="muteToggle" type="button" aria-label="Mute">
+            🔈
+          </button>
+          <div class="language-toggle" id="languageToggle" aria-label="Language toggle">
+          <button class="language-toggle-btn active" type="button" data-lang="en">Eng</button>
+          <button class="language-toggle-btn" type="button" data-lang="es">Spa</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>32x32 Sprite Maker</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #171d26;
+      --panel-2: #202836;
+      --text: #ebf1f8;
+      --muted: #a6b2c4;
+      --border: #334155;
+      --accent: #68b0ff;
+      --good: #45c16e;
+      --danger: #ff8f8f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(82, 122, 189, 0.16), transparent 36%),
+        linear-gradient(180deg, #0b1016, #111722);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.8rem, 4vw, 2.5rem);
+      line-height: 1.05;
+    }
+
+    .sub {
+      margin: 0 0 22px;
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.45;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+    }
+
+    .panel,
+    .viewer {
+      background: rgba(23, 29, 38, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .viewer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .viewer {
+      padding: 16px;
+    }
+
+    .viewer h2,
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+    }
+
+    .dropzone {
+      border: 2px dashed #43536b;
+      border-radius: 16px;
+      padding: 18px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      margin-bottom: 16px;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .dropzone strong {
+      color: var(--text);
+      display: block;
+      font-size: 1.02rem;
+      margin-bottom: 6px;
+    }
+
+    .dropzone.active {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .row {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 6px;
+      font-size: 0.94rem;
+      color: var(--muted);
+    }
+
+    input[type="file"],
+    input[type="range"],
+    button {
+      width: 100%;
+    }
+
+    input[type="file"],
+    button {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px 13px;
+      font: inherit;
+    }
+
+    input[type="range"] {
+      accent-color: var(--accent);
+    }
+
+    button {
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .primary {
+      background: linear-gradient(180deg, #2f89ea, #2368bb);
+      border-color: #4b9cf2;
+      color: white;
+      font-weight: 700;
+    }
+
+    .good {
+      background: linear-gradient(180deg, #31a955, #257940);
+      border-color: #45c16e;
+      color: white;
+      font-weight: 700;
+    }
+
+    .btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .status {
+      min-height: 1.4em;
+      margin-top: 14px;
+      color: var(--good);
+      font-size: 0.95rem;
+    }
+
+    .small {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .canvas-wrap {
+      min-height: 338px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: auto;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        linear-gradient(45deg, #202733 25%, transparent 25%),
+        linear-gradient(-45deg, #202733 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #202733 75%),
+        linear-gradient(-45deg, transparent 75%, #202733 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    }
+
+    canvas {
+      display: block;
+      background: transparent;
+    }
+
+    #resultCanvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .pill strong {
+      color: var(--text);
+    }
+
+    @media (max-width: 940px) {
+      .layout,
+      .viewer-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .canvas-wrap {
+        min-height: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>32x32 Sprite Maker</h1>
+    <p class="sub">
+      Paste or load an image and this page will auto-trim the outer background, crop to the subject,
+      downscale it with a cleaner pipeline, build a compact palette, and export a better looking 32x32 PNG.
+    </p>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>Controls</h2>
+
+        <div class="dropzone" id="dropzone">
+          <strong>Paste or drop an image</strong>
+          Ctrl/Cmd + V works here too, or choose a file below.
+        </div>
+
+        <div class="row">
+          <label for="fileInput">Load image</label>
+          <input type="file" id="fileInput" accept="image/*" />
+        </div>
+
+        <div class="row">
+          <label for="paletteInput">
+            <span>Palette colors</span>
+            <span id="paletteVal">24</span>
+          </label>
+          <input type="range" id="paletteInput" min="8" max="48" step="1" value="24" />
+        </div>
+
+        <div class="row">
+          <label for="paddingInput">
+            <span>Padding</span>
+            <span id="paddingVal">1 px</span>
+          </label>
+          <input type="range" id="paddingInput" min="0" max="4" step="1" value="1" />
+        </div>
+
+        <div class="row">
+          <label for="boostInput">
+            <span>Detail boost</span>
+            <span id="boostVal">30%</span>
+          </label>
+          <input type="range" id="boostInput" min="0" max="100" step="1" value="30" />
+        </div>
+
+        <div class="row">
+          <label for="cleanupInput">
+            <span>Background cleanup</span>
+            <span id="cleanupVal">40%</span>
+          </label>
+          <input type="range" id="cleanupInput" min="10" max="80" step="1" value="40" />
+        </div>
+
+        <div class="btns">
+          <button id="renderBtn" class="primary">Make 32x32</button>
+          <button id="downloadBtn" class="good">Download PNG</button>
+        </div>
+
+        <div class="btns" style="margin-top:10px;">
+          <button id="copyBtn">Copy PNG</button>
+          <button id="resetBtn">Reset</button>
+        </div>
+
+        <div class="status" id="status">Waiting for image…</div>
+        <div class="small">
+          The algorithm trims connected edge background, crops the subject, scales it down in stages,
+          applies a light sharpen pass, and remaps colors to an adaptive palette.
+        </div>
+      </aside>
+
+      <section class="viewer-grid">
+        <div class="viewer">
+          <h2>Prepared Source</h2>
+          <div class="canvas-wrap">
+            <canvas id="sourceCanvas" width="320" height="320"></canvas>
+          </div>
+          <div class="pill" id="sourceInfo"><strong>Crop:</strong> none yet</div>
+        </div>
+
+        <div class="viewer">
+          <h2>32x32 Result</h2>
+          <div class="canvas-wrap">
+            <canvas id="resultCanvas" width="320" height="320"></canvas>
+          </div>
+          <div class="pill" id="resultInfo"><strong>Export:</strong> 32x32 PNG</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const TARGET_SIZE = 32;
+    const PREVIEW_SIZE = 320;
+
+    const fileInput = document.getElementById("fileInput");
+    const paletteInput = document.getElementById("paletteInput");
+    const paddingInput = document.getElementById("paddingInput");
+    const boostInput = document.getElementById("boostInput");
+    const cleanupInput = document.getElementById("cleanupInput");
+
+    const paletteVal = document.getElementById("paletteVal");
+    const paddingVal = document.getElementById("paddingVal");
+    const boostVal = document.getElementById("boostVal");
+    const cleanupVal = document.getElementById("cleanupVal");
+
+    const renderBtn = document.getElementById("renderBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
+    const dropzone = document.getElementById("dropzone");
+    const sourceInfo = document.getElementById("sourceInfo");
+    const resultInfo = document.getElementById("resultInfo");
+
+    const sourceCanvas = document.getElementById("sourceCanvas");
+    const sourceCtx = sourceCanvas.getContext("2d");
+    const resultCanvas = document.getElementById("resultCanvas");
+    const resultCtx = resultCanvas.getContext("2d");
+
+    const state = {
+      image: null,
+      preparedCanvas: null,
+      exportCanvas: null
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.style.color = isError ? "var(--danger)" : "var(--good)";
+    }
+
+    function clearCanvas(ctx, canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function updateLabels() {
+      paletteVal.textContent = paletteInput.value;
+      paddingVal.textContent = `${paddingInput.value} px`;
+      boostVal.textContent = `${boostInput.value}%`;
+      cleanupVal.textContent = `${cleanupInput.value}%`;
+    }
+
+    function drawPreviewCanvas(ctx, canvas, source) {
+      clearCanvas(ctx, canvas);
+      if (!source) return;
+
+      const rect = computeContainRect(
+        source.width,
+        source.height,
+        canvas.width,
+        canvas.height,
+        8
+      );
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(source, rect.x, rect.y, rect.w, rect.h);
+    }
+
+    function loadImageFromBlob(blob) {
+      if (!blob) return;
+
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        state.image = img;
+        autoRender();
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        setStatus("Could not load image.", true);
+      };
+
+      img.src = url;
+    }
+
+    function computeContainRect(srcW, srcH, dstW, dstH, padding) {
+      const innerW = Math.max(1, dstW - padding * 2);
+      const innerH = Math.max(1, dstH - padding * 2);
+      const scale = Math.min(innerW / srcW, innerH / srcH);
+      const w = srcW * scale;
+      const h = srcH * scale;
+
+      return {
+        x: (dstW - w) / 2,
+        y: (dstH - h) / 2,
+        w,
+        h
+      };
+    }
+
+    function sampleBackgroundColor(data, width, height) {
+      const points = [
+        [0, 0],
+        [width - 1, 0],
+        [0, height - 1],
+        [width - 1, height - 1],
+        [Math.floor(width / 2), 0],
+        [Math.floor(width / 2), height - 1],
+        [0, Math.floor(height / 2)],
+        [width - 1, Math.floor(height / 2)]
+      ];
+
+      const samples = [];
+      for (const [x, y] of points) {
+        const index = (y * width + x) * 4;
+        samples.push({
+          r: data[index],
+          g: data[index + 1],
+          b: data[index + 2],
+          a: data[index + 3]
+        });
+      }
+
+      const avg = samples.reduce(
+        (acc, sample) => {
+          acc.r += sample.r;
+          acc.g += sample.g;
+          acc.b += sample.b;
+          acc.a += sample.a;
+          return acc;
+        },
+        { r: 0, g: 0, b: 0, a: 0 }
+      );
+
+      return {
+        r: avg.r / samples.length,
+        g: avg.g / samples.length,
+        b: avg.b / samples.length,
+        a: avg.a / samples.length
+      };
+    }
+
+    function colorDistanceSq(r, g, b, ref) {
+      const dr = r - ref.r;
+      const dg = g - ref.g;
+      const db = b - ref.b;
+      return dr * dr + dg * dg + db * db;
+    }
+
+    function buildBackgroundMask(imageData, width, height, cleanupStrength) {
+      const data = imageData.data;
+      const bg = sampleBackgroundColor(data, width, height);
+      const mask = new Uint8Array(width * height);
+      const queue = new Uint32Array(width * height);
+      const alphaThreshold = 18;
+      const tolerance = 14 + cleanupStrength * 1.1;
+      const distanceThresholdSq = tolerance * tolerance;
+
+      let head = 0;
+      let tail = 0;
+
+      function isBackgroundIndex(index) {
+        const offset = index * 4;
+        const alpha = data[offset + 3];
+        if (alpha <= alphaThreshold) return true;
+        if (Math.abs(alpha - bg.a) > 42) return false;
+        return colorDistanceSq(data[offset], data[offset + 1], data[offset + 2], bg) <= distanceThresholdSq;
+      }
+
+      function push(index) {
+        if (mask[index]) return;
+        if (!isBackgroundIndex(index)) return;
+        mask[index] = 1;
+        queue[tail++] = index;
+      }
+
+      for (let x = 0; x < width; x++) {
+        push(x);
+        push((height - 1) * width + x);
+      }
+
+      for (let y = 0; y < height; y++) {
+        push(y * width);
+        push(y * width + (width - 1));
+      }
+
+      while (head < tail) {
+        const index = queue[head++];
+        const x = index % width;
+        const y = Math.floor(index / width);
+
+        if (x > 0) push(index - 1);
+        if (x < width - 1) push(index + 1);
+        if (y > 0) push(index - width);
+        if (y < height - 1) push(index + width);
+      }
+
+      return mask;
+    }
+
+    function findOpaqueBounds(data, width, height) {
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const alpha = data[(y * width + x) * 4 + 3];
+          if (alpha > 18) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+
+      if (maxX < minX || maxY < minY) {
+        return { x: 0, y: 0, w: width, h: height };
+      }
+
+      return {
+        x: minX,
+        y: minY,
+        w: maxX - minX + 1,
+        h: maxY - minY + 1
+      };
+    }
+
+    function prepareSourceCanvas(img) {
+      const workCanvas = document.createElement("canvas");
+      workCanvas.width = img.width;
+      workCanvas.height = img.height;
+      const workCtx = workCanvas.getContext("2d", { willReadFrequently: true });
+
+      workCtx.clearRect(0, 0, workCanvas.width, workCanvas.height);
+      workCtx.drawImage(img, 0, 0);
+
+      const imageData = workCtx.getImageData(0, 0, workCanvas.width, workCanvas.height);
+      const mask = buildBackgroundMask(
+        imageData,
+        workCanvas.width,
+        workCanvas.height,
+        parseInt(cleanupInput.value, 10)
+      );
+
+      for (let i = 0; i < mask.length; i++) {
+        if (mask[i]) {
+          imageData.data[i * 4 + 3] = 0;
+        }
+      }
+
+      workCtx.putImageData(imageData, 0, 0);
+
+      const bounds = findOpaqueBounds(imageData.data, workCanvas.width, workCanvas.height);
+      const pad = Math.max(1, Math.round(Math.max(bounds.w, bounds.h) * 0.03));
+      const x = Math.max(0, bounds.x - pad);
+      const y = Math.max(0, bounds.y - pad);
+      const w = Math.min(workCanvas.width - x, bounds.w + pad * 2);
+      const h = Math.min(workCanvas.height - y, bounds.h + pad * 2);
+
+      const cropCanvas = document.createElement("canvas");
+      cropCanvas.width = w;
+      cropCanvas.height = h;
+      const cropCtx = cropCanvas.getContext("2d");
+      cropCtx.drawImage(workCanvas, x, y, w, h, 0, 0, w, h);
+
+      sourceInfo.innerHTML = `<strong>Crop:</strong> ${w}x${h}`;
+      return cropCanvas;
+    }
+
+    function renderStageCanvas(source) {
+      const stageCanvas = document.createElement("canvas");
+      const stageSize = 256;
+      stageCanvas.width = stageSize;
+      stageCanvas.height = stageSize;
+      const stageCtx = stageCanvas.getContext("2d");
+      const pad = parseInt(paddingInput.value, 10) * (stageSize / TARGET_SIZE);
+      const rect = computeContainRect(source.width, source.height, stageSize, stageSize, pad);
+
+      stageCtx.clearRect(0, 0, stageCanvas.width, stageCanvas.height);
+      stageCtx.imageSmoothingEnabled = true;
+      stageCtx.imageSmoothingQuality = "high";
+      stageCtx.drawImage(source, rect.x, rect.y, rect.w, rect.h);
+
+      return stageCanvas;
+    }
+
+    function progressiveDownscale(sourceCanvas, targetSize) {
+      let currentCanvas = sourceCanvas;
+
+      while (
+        currentCanvas.width / 2 >= targetSize * 1.5 &&
+        currentCanvas.height / 2 >= targetSize * 1.5
+      ) {
+        const nextCanvas = document.createElement("canvas");
+        nextCanvas.width = Math.max(targetSize, Math.round(currentCanvas.width / 2));
+        nextCanvas.height = Math.max(targetSize, Math.round(currentCanvas.height / 2));
+
+        const nextCtx = nextCanvas.getContext("2d");
+        nextCtx.imageSmoothingEnabled = true;
+        nextCtx.imageSmoothingQuality = "high";
+        nextCtx.drawImage(currentCanvas, 0, 0, nextCanvas.width, nextCanvas.height);
+        currentCanvas = nextCanvas;
+      }
+
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = targetSize;
+      finalCanvas.height = targetSize;
+      const finalCtx = finalCanvas.getContext("2d", { willReadFrequently: true });
+      finalCtx.imageSmoothingEnabled = true;
+      finalCtx.imageSmoothingQuality = "high";
+      finalCtx.drawImage(currentCanvas, 0, 0, targetSize, targetSize);
+
+      return finalCanvas;
+    }
+
+    function boostImage(imageData, width, height, amount) {
+      const data = imageData.data;
+      const contrast = 1 + amount * 0.18;
+      const saturation = 1 + amount * 0.28;
+      const brightness = 1 + amount * 0.05;
+      const shift = 128 * (1 - contrast);
+
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+
+        let r = data[i] * brightness;
+        let g = data[i + 1] * brightness;
+        let b = data[i + 2] * brightness;
+
+        r = r * contrast + shift;
+        g = g * contrast + shift;
+        b = b * contrast + shift;
+
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        data[i] = clamp(Math.round(gray + (r - gray) * saturation), 0, 255);
+        data[i + 1] = clamp(Math.round(gray + (g - gray) * saturation), 0, 255);
+        data[i + 2] = clamp(Math.round(gray + (b - gray) * saturation), 0, 255);
+      }
+
+      const source = new Uint8ClampedArray(data);
+      const sharpen = amount * 0.55;
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const idx = (y * width + x) * 4;
+          if (source[idx + 3] === 0) continue;
+
+          for (let c = 0; c < 3; c++) {
+            const center = source[idx + c];
+            const blur =
+              (
+                source[idx - 4 + c] +
+                source[idx + 4 + c] +
+                source[idx - width * 4 + c] +
+                source[idx + width * 4 + c] +
+                center * 4
+              ) / 8;
+            data[idx + c] = clamp(Math.round(center + (center - blur) * sharpen), 0, 255);
+          }
+        }
+      }
+    }
+
+    function gatherOpaquePixels(imageData) {
+      const pixels = [];
+      const data = imageData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 14) {
+          pixels.push([data[i], data[i + 1], data[i + 2]]);
+        }
+      }
+
+      return pixels;
+    }
+
+    function buildInitialPalette(pixels, paletteSize) {
+      const buckets = new Map();
+
+      for (const [r, g, b] of pixels) {
+        const key = `${r >> 3},${g >> 3},${b >> 3}`;
+        const bucket = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+        bucket.count += 1;
+        bucket.r += r;
+        bucket.g += g;
+        bucket.b += b;
+        buckets.set(key, bucket);
+      }
+
+      return [...buckets.values()]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, paletteSize)
+        .map(bucket => [
+          bucket.r / bucket.count,
+          bucket.g / bucket.count,
+          bucket.b / bucket.count
+        ]);
+    }
+
+    function nearestPaletteIndex(color, palette) {
+      let bestIndex = 0;
+      let bestDistance = Infinity;
+
+      for (let i = 0; i < palette.length; i++) {
+        const dr = color[0] - palette[i][0];
+        const dg = color[1] - palette[i][1];
+        const db = color[2] - palette[i][2];
+        const distance = dr * dr + dg * dg + db * db;
+
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = i;
+        }
+      }
+
+      return bestIndex;
+    }
+
+    function refinePalette(pixels, initialPalette, iterations) {
+      let palette = initialPalette.map(color => [...color]);
+      if (palette.length === 0) return [[0, 0, 0]];
+
+      for (let step = 0; step < iterations; step++) {
+        const sums = palette.map(() => ({ r: 0, g: 0, b: 0, count: 0 }));
+
+        for (const pixel of pixels) {
+          const index = nearestPaletteIndex(pixel, palette);
+          sums[index].r += pixel[0];
+          sums[index].g += pixel[1];
+          sums[index].b += pixel[2];
+          sums[index].count += 1;
+        }
+
+        palette = palette.map((color, index) => {
+          const sum = sums[index];
+          if (sum.count === 0) return color;
+          return [
+            sum.r / sum.count,
+            sum.g / sum.count,
+            sum.b / sum.count
+          ];
+        });
+      }
+
+      return palette;
+    }
+
+    function quantizeImage(imageData, paletteSize) {
+      const pixels = gatherOpaquePixels(imageData);
+      if (pixels.length === 0) return;
+
+      const palette = refinePalette(
+        pixels,
+        buildInitialPalette(pixels, paletteSize),
+        4
+      );
+
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const alpha = data[i + 3];
+        if (alpha <= 14) {
+          data[i + 3] = 0;
+          continue;
+        }
+
+        const paletteIndex = nearestPaletteIndex([data[i], data[i + 1], data[i + 2]], palette);
+        data[i] = Math.round(palette[paletteIndex][0]);
+        data[i + 1] = Math.round(palette[paletteIndex][1]);
+        data[i + 2] = Math.round(palette[paletteIndex][2]);
+        data[i + 3] = alpha < 140 ? 0 : 255;
+      }
+    }
+
+    function despeckleImage(imageData, width, height) {
+      const data = imageData.data;
+      const source = new Uint8ClampedArray(data);
+
+      function pixelOffset(x, y) {
+        return (y * width + x) * 4;
+      }
+
+      function sameColor(a, b) {
+        return (
+          source[a] === source[b] &&
+          source[a + 1] === source[b + 1] &&
+          source[a + 2] === source[b + 2] &&
+          source[a + 3] === source[b + 3]
+        );
+      }
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const center = pixelOffset(x, y);
+          if (source[center + 3] === 0) continue;
+
+          const left = pixelOffset(x - 1, y);
+          const right = pixelOffset(x + 1, y);
+          const up = pixelOffset(x, y - 1);
+          const down = pixelOffset(x, y + 1);
+
+          if (sameColor(left, right) && sameColor(left, up) && sameColor(left, down) && !sameColor(center, left)) {
+            data[center] = source[left];
+            data[center + 1] = source[left + 1];
+            data[center + 2] = source[left + 2];
+            data[center + 3] = source[left + 3];
+          }
+        }
+      }
+    }
+
+    function renderTo32x32(source) {
+      const stageCanvas = renderStageCanvas(source);
+      const spriteCanvas = progressiveDownscale(stageCanvas, TARGET_SIZE);
+      const spriteCtx = spriteCanvas.getContext("2d", { willReadFrequently: true });
+      const imageData = spriteCtx.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE);
+
+      boostImage(imageData, TARGET_SIZE, TARGET_SIZE, parseInt(boostInput.value, 10) / 100);
+      quantizeImage(imageData, parseInt(paletteInput.value, 10));
+      despeckleImage(imageData, TARGET_SIZE, TARGET_SIZE);
+      spriteCtx.putImageData(imageData, 0, 0);
+
+      return spriteCanvas;
+    }
+
+    function drawResultPreview(exportCanvas) {
+      resultCanvas.width = PREVIEW_SIZE;
+      resultCanvas.height = PREVIEW_SIZE;
+      clearCanvas(resultCtx, resultCanvas);
+      resultCtx.imageSmoothingEnabled = false;
+      resultCtx.drawImage(exportCanvas, 0, 0, PREVIEW_SIZE, PREVIEW_SIZE);
+    }
+
+    function autoRender() {
+      if (!state.image) {
+        setStatus("Paste or load an image first.", true);
+        return;
+      }
+
+      const prepared = prepareSourceCanvas(state.image);
+      const sprite = renderTo32x32(prepared);
+
+      state.preparedCanvas = prepared;
+      state.exportCanvas = sprite;
+
+      drawPreviewCanvas(sourceCtx, sourceCanvas, prepared);
+      drawResultPreview(sprite);
+
+      resultInfo.innerHTML = `<strong>Export:</strong> 32x32 PNG, ${paletteInput.value} colors`;
+      setStatus(`Built 32x32 sprite from ${state.image.width}x${state.image.height}`);
+    }
+
+    function downloadResult() {
+      if (!state.exportCanvas) {
+        setStatus("Nothing to download yet.", true);
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.href = state.exportCanvas.toDataURL("image/png");
+      a.download = "sprite-32x32.png";
+      a.click();
+      setStatus("PNG downloaded.");
+    }
+
+    async function copyResult() {
+      if (!state.exportCanvas) {
+        setStatus("Nothing to copy yet.", true);
+        return;
+      }
+
+      try {
+        const blob = await new Promise(resolve => state.exportCanvas.toBlob(resolve, "image/png"));
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        setStatus("PNG copied to clipboard.");
+      } catch (error) {
+        setStatus("Clipboard copy failed in this browser.", true);
+      }
+    }
+
+    function resetApp() {
+      state.image = null;
+      state.preparedCanvas = null;
+      state.exportCanvas = null;
+      fileInput.value = "";
+      paletteInput.value = 24;
+      paddingInput.value = 1;
+      boostInput.value = 30;
+      cleanupInput.value = 40;
+      updateLabels();
+      clearCanvas(sourceCtx, sourceCanvas);
+      clearCanvas(resultCtx, resultCanvas);
+      sourceInfo.innerHTML = "<strong>Crop:</strong> none yet";
+      resultInfo.innerHTML = "<strong>Export:</strong> 32x32 PNG";
+      setStatus("Waiting for image…");
+    }
+
+    fileInput.addEventListener("change", event => {
+      const file = event.target.files?.[0];
+      if (file) loadImageFromBlob(file);
+    });
+
+    document.addEventListener("paste", event => {
+      const items = event.clipboardData?.items || [];
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          loadImageFromBlob(item.getAsFile());
+          return;
+        }
+      }
+      setStatus("Clipboard does not contain an image.", true);
+    });
+
+    ["dragenter", "dragover"].forEach(type => {
+      dropzone.addEventListener(type, event => {
+        event.preventDefault();
+        dropzone.classList.add("active");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(type => {
+      dropzone.addEventListener(type, event => {
+        event.preventDefault();
+        dropzone.classList.remove("active");
+      });
+    });
+
+    dropzone.addEventListener("drop", event => {
+      const file = event.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith("image/")) {
+        loadImageFromBlob(file);
+      } else {
+        setStatus("Dropped file is not an image.", true);
+      }
+    });
+
+    renderBtn.addEventListener("click", autoRender);
+    downloadBtn.addEventListener("click", downloadResult);
+    copyBtn.addEventListener("click", copyResult);
+    resetBtn.addEventListener("click", resetApp);
+
+    [paletteInput, paddingInput, boostInput, cleanupInput].forEach(input => {
+      input.addEventListener("input", () => {
+        updateLabels();
+        if (state.image) autoRender();
+      });
+    });
+
+    updateLabels();
+    resetApp();
+  </script>
+</body>
+</html>
