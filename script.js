@@ -1970,7 +1970,7 @@ function renderSpecialOffer(options) {
       ? `<div class="trap-offer-row-icon" aria-hidden="true">🔇</div>`
       : isExitOffer
         ? `<div class="trap-offer-row-button" aria-hidden="true">${copy("exit")}</div>`
-      : `<img class="trap-offer-row-image" src="${isTimeOffer ? "images/cat.png" : tier.image}" alt="" />`;
+      : `<img class="trap-offer-row-image" src="${isTimeOffer ? "images/time.png" : tier.image}" alt="" />`;
     const rowCost = isTimeOffer ? currentTimeOfferSeconds : option.cost;
     return `
       <div class="trap-offer-row${isTimeOffer ? " trap-offer-row-time" : ""}">
