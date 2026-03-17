@@ -26,6 +26,8 @@ body {
     radial-gradient(circle at top, #4a1d40 0%, #2a1638 35%, #160c21 100%);
   color: var(--text);
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 body {
@@ -43,6 +45,7 @@ body {
   padding: 12px;
   gap: 10px;
   position: relative;
+  touch-action: manipulation;
 }
 
 .topbar,
@@ -110,6 +113,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
 .mole-runner {
@@ -232,6 +236,7 @@ body {
   padding: 4px;
   align-content: center;
   z-index: 2;
+  touch-action: manipulation;
 }
 
 .tile {
@@ -246,6 +251,7 @@ body {
   justify-content: center;
   font-size: var(--tile-font-size, clamp(1.55rem, 5.6vw, 2.15rem));
   cursor: pointer;
+  touch-action: manipulation;
   transition:
     transform 0.08s ease,
     background 0.18s ease,
@@ -385,6 +391,7 @@ body {
     0 8px 18px rgba(0, 0, 0, 0.28),
     inset 0 -3px 0 rgba(8, 83, 31, 0.22);
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .bottom-exit-btn.hidden {
@@ -410,6 +417,7 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .mute-toggle.hidden {
@@ -426,6 +434,7 @@ body {
   padding: 6px 10px;
   line-height: 1;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .language-toggle-btn.active {
@@ -669,6 +678,7 @@ body {
   min-width: 180px;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .cta-btn:active {
@@ -776,8 +786,8 @@ body {
   position: absolute;
   top: 15px;
   left: 18px;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   display: block;
   margin: 0;
   object-fit: contain;
@@ -938,6 +948,7 @@ body {
   line-height: 1;
   padding: 0;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .time-offer-count {

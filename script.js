@@ -642,6 +642,10 @@ function handleVisibilityAudioChange() {
   }
 }
 
+function preventIosGestures(event) {
+  event.preventDefault();
+}
+
 function playSelectSound() {
   beep(620, 0.08, "square", 0.03);
 }
@@ -2275,6 +2279,9 @@ exitBtn.addEventListener("click", () => {
 });
 
 document.addEventListener("visibilitychange", handleVisibilityAudioChange);
+document.addEventListener("gesturestart", preventIosGestures, { passive: false });
+document.addEventListener("gesturechange", preventIosGestures, { passive: false });
+document.addEventListener("gestureend", preventIosGestures, { passive: false });
 window.addEventListener("pagehide", pauseAppAudioForVisibility);
 window.addEventListener("blur", pauseAppAudioForVisibility);
 window.addEventListener("focus", () => {
