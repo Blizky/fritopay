@@ -40,17 +40,17 @@ const GAME_CONFIG = {
   // Start adding a bonus clock tile from this round onward.
   bonusClockStartsAtRound: 5,
   // Chance that the bonus clock appears before the late-game boost.
-  bonusClockChance: 0.45,
+  bonusClockChance: 0.6,
   // Chance that the bonus clock appears from round 11 onward.
-  bonusClockChanceAfterRound10: 0.75,
+  bonusClockChanceAfterRound10: 0.85,
   // Seconds added to the next round when the bonus clock is selected.
   bonusClockSeconds: 1,
   // Start adding a bonus yarn tile from this round onward.
   bonusYarnStartsAtRound: 5,
   // Chance that the bonus yarn appears before the late-game boost.
-  bonusYarnChance: 0.3,
+  bonusYarnChance: 0.45,
   // Chance that the bonus yarn appears from round 11 onward.
-  bonusYarnChanceAfterRound10: 0.55,
+  bonusYarnChanceAfterRound10: 0.7,
   // Hairballs added when the bonus yarn is selected.
   bonusYarnHairballs: 1,
   // Before round 11, bonus hints start when this share of time is left.
@@ -1805,7 +1805,7 @@ function getExitOfferOption() {
 }
 
 function getSpecialOfferOptions(roundNumber = round) {
-  if (nextRoundTime < 5 && roundNumber >= GAME_CONFIG.timeOfferStartsAtRound) {
+  if (nextRoundTime <= 5) {
     return [getTimeOfferOption()];
   }
 
