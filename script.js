@@ -2121,8 +2121,9 @@ function showResult() {
     resourceSummary.classList.remove("hidden");
     timeNote.textContent = "";
     const specialOfferOptions = getSpecialOfferOptions(round);
+    const shouldForceTimeOffer = specialOfferOptions.some(option => option.kind === "time");
 
-    if (specialOfferOptions.length > 0 && !trapPurchasedForNextRound) {
+    if (specialOfferOptions.length > 0 && (!trapPurchasedForNextRound || shouldForceTimeOffer)) {
       renderSpecialOffer(specialOfferOptions);
     } else {
       hideTrapOffer();
