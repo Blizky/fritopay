@@ -344,7 +344,7 @@ const COPY = {
     totalCatsMissed: value => `Total cats missed: ${value}`,
     rescueScore: value => `Your Rescue Score is ${value}%`,
     rivalScore: (name, value) => `${name} score is ${value}%`,
-    tradeHairballs: "1 Hairball = 1 second.",
+    tradeHairballs: "1 Hairball = 2 seconds.",
     muteOfferMessage: "Unlock the mute button.",
     trapsCatchMole: "Traps can catch the mole.",
     bestForNow: "This is the best I have for now.",
@@ -396,7 +396,7 @@ const COPY = {
     totalCatsMissed: value => `Total de gatos perdidos: ${value}`,
     rescueScore: value => `Tu puntuación de rescate es ${value}%`,
     rivalScore: (name, value) => `${name} tiene ${value}%`,
-    tradeHairballs: "1 bola de pelo = 1 segundo.",
+    tradeHairballs: "1 bola de pelo = 2 segundos.",
     muteOfferMessage: "Desbloquea el botón de silencio.",
     trapsCatchMole: "Las trampas pueden atrapar al topo.",
     bestForNow: "Esto es lo mejor que tengo por ahora.",
@@ -465,9 +465,9 @@ function applyBoardLayout(roundNumber = round) {
 
   const gap = Math.max(4, 8 - size.growth);
   const radius = Math.max(10, 16 - size.growth);
-  const minFont = Math.max(0.92, 1.55 - size.growth * 0.12);
-  const vwFont = Math.max(3.1, 5.6 - size.growth * 0.45);
-  const maxFont = Math.max(1.35, 2.15 - size.growth * 0.16);
+  const minFont = Math.max(1.14, 1.9 - size.growth * 0.09);
+  const vwFont = Math.max(3.9, 6.8 - size.growth * 0.34);
+  const maxFont = Math.max(1.72, 2.72 - size.growth * 0.12);
 
   boardEl.style.setProperty("--board-cols", String(currentCols));
   boardEl.style.setProperty("--board-rows", String(currentRows));
@@ -1804,6 +1804,10 @@ function getExitOfferOption() {
   };
 }
 
+function getTimeOfferSeconds(hairballCount = currentTimeOfferSeconds) {
+  return hairballCount * 2;
+}
+
 function getSpecialOfferOptions(roundNumber = round) {
   if (nextRoundTime <= 5) {
     return [getTimeOfferOption()];
@@ -1960,7 +1964,7 @@ function renderSpecialOffer(options) {
     const isExitOffer = option.kind === "exit";
     const tier = (isTimeOffer || isMuteOffer || isExitOffer) ? null : getTrapTierById(option.tierId);
     const rowTitle = isTimeOffer
-      ? copy("timeOfferTitle", currentTimeOfferSeconds)
+      ? copy("timeOfferTitle", getTimeOfferSeconds())
       : isMuteOffer
         ? copy("muteOfferTitle")
         : isExitOffer
@@ -2242,10 +2246,11 @@ trapOfferRows.addEventListener("click", event => {
   playTrack("buff", { volume: 0.95 });
 
   if (selectedOption.kind === "time") {
-    nextRoundTime += currentTimeOfferSeconds;
+    const purchasedSeconds = getTimeOfferSeconds();
+    nextRoundTime += purchasedSeconds;
     showPurchasedOfferSummary({
       kind: "time",
-      seconds: currentTimeOfferSeconds
+      seconds: purchasedSeconds
     });
   } else if (selectedOption.kind === "mute") {
     muteControlUnlocked = true;

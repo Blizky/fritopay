@@ -242,6 +242,7 @@ body {
 .tile {
   position: relative;
   overflow: hidden;
+  padding: 0;
   border: 2px solid var(--tile-stroke, var(--tile-border));
   background: var(--tile-fill, var(--tile));
   border-radius: var(--tile-radius, 16px);
@@ -249,7 +250,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--tile-font-size, clamp(1.7rem, 6vw, 2.35rem));
+  font-size: var(--tile-font-size, clamp(2.1rem, 7.4vw, 3rem));
+  line-height: 1;
+  appearance: none;
+  -webkit-appearance: none;
   cursor: pointer;
   touch-action: manipulation;
   transition:
@@ -332,7 +336,14 @@ body {
 .tile .emoji {
   position: relative;
   z-index: 1;
-  transform: translateY(-1px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding-top: 3px;
+  line-height: 1;
+  transform: scale(1.36);
 }
 
 .fanfare {
@@ -655,7 +666,7 @@ body {
   font-size: 0.98rem;
   font-weight: 800;
   line-height: 1.4;
-  white-space: nowrap;
+  white-space: normal;
   text-shadow:
     0 2px 0 rgba(96, 38, 122, 0.55),
     0 4px 12px rgba(37, 7, 58, 0.42);
@@ -690,6 +701,8 @@ body {
 }
 
 .cta-btn-start {
+  position: relative;
+  overflow: hidden;
   width: min(100%, 320px);
   min-width: 0;
   padding: 17px 28px;
@@ -704,6 +717,17 @@ body {
   box-shadow:
     0 14px 24px rgba(0, 0, 0, 0.32),
     inset 0 -4px 0 rgba(8, 83, 31, 0.22);
+}
+
+.cta-btn-start::after {
+  content: "";
+  position: absolute;
+  inset: -20% auto -20% -34%;
+  width: 34%;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.72) 48%, rgba(255, 255, 255, 0) 100%);
+  transform: translateX(-180%) skewX(-18deg);
+  animation: startButtonShine 2.8s ease-in-out infinite;
+  pointer-events: none;
 }
 
 #nextBtn {
@@ -1186,6 +1210,19 @@ body {
   100% {
     transform: translateX(58%) rotate(10deg);
     opacity: 0;
+  }
+}
+
+@keyframes startButtonShine {
+  0%,
+  24% {
+    transform: translateX(-180%) skewX(-18deg);
+  }
+  42% {
+    transform: translateX(360%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(360%) skewX(-18deg);
   }
 }
 
