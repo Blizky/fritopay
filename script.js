@@ -247,6 +247,7 @@ const trapOfferSummaryImage = document.getElementById("trapOfferSummaryImage");
 const trapOfferSummaryText = document.getElementById("trapOfferSummaryText");
 const trapOfferRows = document.getElementById("trapOfferRows");
 const trapOfferDismissBtn = document.getElementById("trapOfferDismissBtn");
+const resourceSummary = document.getElementById("resourceSummary");
 const hairballSummaryText = document.getElementById("hairballSummaryText");
 const timeSummaryText = document.getElementById("timeSummaryText");
 const timeNote = document.getElementById("timeNote");
@@ -2064,8 +2065,7 @@ function showResult() {
     currentRivalScore = rivalScore;
     resultTitle.textContent = copy("gameOver");
     renderGameOverText();
-    hairballSummary.classList.add("hidden");
-    timeSummary.classList.add("hidden");
+    resourceSummary.classList.add("hidden");
     timeNote.textContent = "";
     hideTrapOffer();
     nextBtn.classList.add("hidden");
@@ -2075,8 +2075,7 @@ function showResult() {
   } else {
     playTrack("start", { volume: 0.95 });
     renderRoundResultText();
-    hairballSummary.classList.remove("hidden");
-    timeSummary.classList.remove("hidden");
+    resourceSummary.classList.remove("hidden");
     timeNote.textContent = "";
     const specialOfferOptions = getSpecialOfferOptions(round);
 
