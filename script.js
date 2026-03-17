@@ -219,6 +219,7 @@ const TRAP_TIERS = [
 
 const boardEl = document.getElementById("board");
 const boardWrapEl = boardEl.parentElement;
+const gameEl = document.querySelector(".game");
 const timerLabel = document.getElementById("timerLabel");
 const targetLabel = document.getElementById("targetLabel");
 const roundLabel = document.getElementById("roundLabel");
@@ -305,6 +306,7 @@ let backgroundMusicPlayer = null;
 let countdownPlayer = null;
 let roundAudioToken = 0;
 let homeScreenPlayer = null;
+let appAudioPausedByVisibility = false;
 const activeAudioPlayers = new Set();
 
 const COPY = {
@@ -601,6 +603,42 @@ function applyMuteState() {
       roundCountdownPlayed = true;
       countdownPlayer = playTrack("countdown", { volume: 0.95 });
     }
+  }
+}
+
+function pauseAppAudioForVisibility() {
+  if (appAudioPausedByVisibility) return;
+
+  appAudioPausedByVisibility = true;
+  stopAllAudioPlayers();
+  roundIntroPlayer = null;
+  backgroundMusicPlayer = null;
+  countdownPlayer = null;
+  homeScreenPlayer = null;
+
+  if (audioCtx && audioCtx.state === "running") {
+    audioCtx.suspend().catch(() => {});
+  }
+}
+
+function resumeAppAudioFromVisibility() {
+  if (!appAudioPausedByVisibility) return;
+
+  appAudioPausedByVisibility = false;
+
+  if (isMuted) {
+    return;
+  }
+
+  ensureAudio();
+  applyMuteState();
+}
+
+function handleVisibilityAudioChange() {
+  if (document.hidden) {
+    pauseAppAudioForVisibility();
+  } else {
+    resumeAppAudioFromVisibility();
   }
 }
 
@@ -1025,6 +1063,7 @@ function showHomeScreen() {
   timeoutFlash.classList.remove("show");
   resultPanel.classList.remove("show");
   splashPanel.classList.add("show");
+  gameEl.classList.add("home-screen-active");
   nextBtn.classList.remove("hidden");
   exitBtn.classList.add("hidden");
   updateLanguageUI();
@@ -2095,6 +2134,7 @@ function showResult() {
 
 async function beginRound() {
   splashPanel.classList.remove("show");
+  gameEl.classList.remove("home-screen-active");
   resultPanel.classList.remove("show");
   timeoutFlash.classList.remove("show");
   hideTrapOffer();
@@ -2232,6 +2272,15 @@ trapOfferDismissBtn.addEventListener("click", () => {
 
 exitBtn.addEventListener("click", () => {
   showHomeScreen();
+});
+
+document.addEventListener("visibilitychange", handleVisibilityAudioChange);
+window.addEventListener("pagehide", pauseAppAudioForVisibility);
+window.addEventListener("blur", pauseAppAudioForVisibility);
+window.addEventListener("focus", () => {
+  if (!document.hidden) {
+    resumeAppAudioFromVisibility();
+  }
 });
 
 initGame();

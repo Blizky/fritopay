@@ -522,9 +522,11 @@ body {
 }
 
 .overlay-panel.home-screen {
+  position: fixed;
   inset: 0;
   background: url("images/start_screen.jpg") center / cover no-repeat;
   border: 0;
+  border-radius: 0;
   box-shadow: none;
   justify-content: center;
   align-items: center;
@@ -584,6 +586,37 @@ body {
   box-shadow:
     0 18px 34px rgba(45, 9, 69, 0.34),
     inset 0 -5px 0 rgba(99, 39, 142, 0.24);
+}
+
+.game.home-screen-active .topbar,
+.game.home-screen-active .board,
+.game.home-screen-active .mole-runner,
+.game.home-screen-active .trap-runner,
+.game.home-screen-active .timeout-flash {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.game.home-screen-active .bottombar {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.game.home-screen-active .stats {
+  justify-content: flex-end;
+}
+
+.game.home-screen-active .bottom-exit-btn {
+  display: none;
+}
+
+.game.home-screen-active .bottom-controls {
+  position: fixed;
+  right: 18px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 40;
 }
 
 .home-screen .overlay-title {
