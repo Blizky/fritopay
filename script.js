@@ -10,7 +10,9 @@ const GAME_CONFIG = {
   // How many cat tiles the player must find in round 1.
   startingCats: 5,
   // How many seconds the player gets in round 1.
-  startingTimeSeconds: 5,
+  startingTimeSeconds: 10,
+  // After round 1, Frito steals this many seconds from round 2.
+  onboardingTimeStealSeconds: 4,
   // How many new cat targets get added after a perfect rescue.
   catsAddedPerRound: 1,
   // Time bonus for rescuing every cat in the round.
@@ -160,12 +162,12 @@ const OTHER_EMOJIS = [
 ];
 
 const LATE_TILE_SKINS = [
-  { fill: "#7a315d", border: "#a65386" },
-  { fill: "#2f5f7f", border: "#5f93ba" },
-  { fill: "#5a4a87", border: "#8778be" },
-  { fill: "#4f6a35", border: "#7fa159" },
-  { fill: "#875439", border: "#c28258" },
-  { fill: "#7a3d70", border: "#bb71af" }
+  { fill: "#f2dce7", border: "#d9b6ca" },
+  { fill: "#dce8f4", border: "#b7cde0" },
+  { fill: "#e7def5", border: "#c8b8e1" },
+  { fill: "#e0edd8", border: "#b9d1ab" },
+  { fill: "#f5e1d4", border: "#dfbaa4" },
+  { fill: "#efe0ea", border: "#d4b8ca" }
 ];
 
 const AUDIO_TRACKS = {
@@ -231,8 +233,10 @@ const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
 const trapRunner = document.getElementById("trapRunner");
 
+const landingPanel = document.getElementById("landingPanel");
 const splashPanel = document.getElementById("splashPanel");
 const splashText = document.getElementById("splashText");
+const playBtn = document.getElementById("playBtn");
 const startBtn = document.getElementById("startBtn");
 const timeoutFlash = document.getElementById("timeoutFlash");
 
@@ -298,7 +302,6 @@ let currentRivalScore = 0;
 let muteControlUnlocked = false;
 let exitControlUnlocked = false;
 let isMuted = false;
-let currentTimeOfferSeconds = GAME_CONFIG.timeOfferMinSeconds;
 let moleRepeatTimeoutId = null;
 let roundCountdownPlayed = false;
 let roundIntroPlayer = null;
@@ -308,6 +311,7 @@ let roundAudioToken = 0;
 let homeScreenPlayer = null;
 let appAudioPausedByVisibility = false;
 const activeAudioPlayers = new Set();
+const LANGUAGE_STORAGE_KEY = "fritopay-language";
 
 const COPY = {
   en: {
@@ -323,7 +327,8 @@ const COPY = {
       You need to rescue them.<br><br>
       You have <strong>${seconds}</strong> seconds to find all the cats.
     `,
-    makeFritoPay: "Make Frito Pay!",
+    startPlaying: "Start playing",
+    startRescuingCats: "Start rescuing cats",
     timeout: "Time's up",
     roundOver: "Round Over",
     specialOffer: "Special Offer",
@@ -340,11 +345,17 @@ const COPY = {
     notBad: "Not Bad!",
     gameOver: "Game Over",
     catsRescued: (found, total) => `${found} of ${total} cats rescued`,
+    firstRoundHurry: (stolen, left) => `Frito stole ${stolen} second${stolen === 1 ? "" : "s"} from you. You only have ${left} second${left === 1 ? "" : "s"} left, so hurry.`,
+    earnedBonusLine: value => `Earned bonus: +${value} second${value === 1 ? "" : "s"}`,
+    fritoStealsLine: value => `Frito steals ${value} second${value === 1 ? "" : "s"} for your next round`,
+    noBonusLine: "No extra time this round",
+    earnedClockLine: value => `⏰ You earned ${value} second${value === 1 ? "" : "s"}`,
+    earnedHairballLine: value => `🧶 You earned ${value} Hairball${value === 1 ? "" : "s"}`,
     totalCatsRescued: value => `Total cats rescued: ${value}`,
     totalCatsMissed: value => `Total cats missed: ${value}`,
     rescueScore: value => `Your Rescue Score is ${value}%`,
     rivalScore: (name, value) => `${name} score is ${value}%`,
-    tradeHairballs: "1 Hairball = 2 seconds.",
+    tradeHairballs: (hairballs, seconds) => `Trade all ${hairballs} Hairball${hairballs === 1 ? "" : "s"} for ${seconds} second${seconds === 1 ? "" : "s"}.`,
     muteOfferMessage: "Unlock the mute button.",
     trapsCatchMole: "Traps can catch the mole.",
     bestForNow: "This is the best I have for now.",
@@ -375,7 +386,8 @@ const COPY = {
       Tienes que rescatarlos.<br><br>
       Tienes <strong>${seconds}</strong> segundos para encontrar a todos los gatos.
     `,
-    makeFritoPay: "¡Haz que Frito pague!",
+    startPlaying: "Empezar a jugar",
+    startRescuingCats: "Empezar a rescatar gatos",
     timeout: "Se acabó el tiempo",
     roundOver: "Fin de ronda",
     specialOffer: "Oferta especial",
@@ -392,11 +404,17 @@ const COPY = {
     notBad: "Nada mal",
     gameOver: "Fin del juego",
     catsRescued: (found, total) => `${found} de ${total} gatos rescatados`,
+    firstRoundHurry: (stolen, left) => `Frito te robó ${stolen} segundo${stolen === 1 ? "" : "s"}. Solo te quedan ${left} segundo${left === 1 ? "" : "s"}, así que apúrate.`,
+    earnedBonusLine: value => `Bonus ganado: +${value} segundo${value === 1 ? "" : "s"}`,
+    fritoStealsLine: value => `Frito te roba ${value} segundo${value === 1 ? "" : "s"} para la próxima ronda`,
+    noBonusLine: "Sin tiempo extra esta ronda",
+    earnedClockLine: value => `⏰ Ganaste ${value} segundo${value === 1 ? "" : "s"}`,
+    earnedHairballLine: value => `🧶 Ganaste ${value} bola${value === 1 ? "" : "s"} de pelo`,
     totalCatsRescued: value => `Total de gatos rescatados: ${value}`,
     totalCatsMissed: value => `Total de gatos perdidos: ${value}`,
     rescueScore: value => `Tu puntuación de rescate es ${value}%`,
     rivalScore: (name, value) => `${name} tiene ${value}%`,
-    tradeHairballs: "1 bola de pelo = 2 segundos.",
+    tradeHairballs: (hairballs, seconds) => `Cambia tus ${hairballs} bola${hairballs === 1 ? "" : "s"} de pelo por ${seconds} segundo${seconds === 1 ? "" : "s"}.`,
     muteOfferMessage: "Desbloquea el botón de silencio.",
     trapsCatchMole: "Las trampas pueden atrapar al topo.",
     bestForNow: "Esto es lo mejor que tengo por ahora.",
@@ -421,6 +439,57 @@ function copy(key, ...args) {
   return typeof entry === "function" ? entry(...args) : entry;
 }
 
+function normalizeLanguageCode(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase().split("-")[0];
+}
+
+function isSupportedLanguage(language) {
+  return Object.prototype.hasOwnProperty.call(COPY, language);
+}
+
+function getStoredPreferredLanguage() {
+  try {
+    const storedLanguage = normalizeLanguageCode(window.localStorage.getItem(LANGUAGE_STORAGE_KEY));
+    return isSupportedLanguage(storedLanguage) ? storedLanguage : "";
+  } catch {
+    return "";
+  }
+}
+
+function detectPreferredLanguage() {
+  const browserLanguages = Array.isArray(navigator.languages) && navigator.languages.length > 0
+    ? navigator.languages
+    : [navigator.language, navigator.userLanguage];
+
+  for (const candidate of browserLanguages) {
+    const normalizedLanguage = normalizeLanguageCode(candidate);
+    if (isSupportedLanguage(normalizedLanguage)) {
+      return normalizedLanguage;
+    }
+  }
+
+  return "en";
+}
+
+function setCurrentLanguage(language, { persist = false } = {}) {
+  const normalizedLanguage = normalizeLanguageCode(language);
+  if (!isSupportedLanguage(normalizedLanguage)) {
+    return false;
+  }
+
+  currentLanguage = normalizedLanguage;
+  document.documentElement.lang = normalizedLanguage;
+
+  if (persist) {
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, normalizedLanguage);
+    } catch {}
+  }
+
+  return true;
+}
+
 function getTrapTierLabel(tierId, plural = false) {
   if (currentLanguage === "en") {
     const tier = getTrapTierById(tierId);
@@ -431,6 +500,10 @@ function getTrapTierLabel(tierId, plural = false) {
   const value = copy(key);
   if (plural) return value;
   return value.replace(/^trampas /, "Trampa ").replace("normales", "normal");
+}
+
+function isPreGameScreenVisible() {
+  return landingPanel.classList.contains("show") || splashPanel.classList.contains("show");
 }
 
 function getBoardGrowth(roundNumber = round) {
@@ -595,7 +668,7 @@ function applyMuteState() {
     return;
   }
 
-  if (splashPanel.classList.contains("show")) {
+  if (isPreGameScreenVisible()) {
     playHomeScreenAudio();
   } else if (!resultPanel.classList.contains("show") && remainingTime > 0 && !gameOver) {
     playRoundIntroAndMusic();
@@ -839,7 +912,7 @@ function createTileButton(index) {
       moleSwapInProgress ||
       remainingTime <= 0 ||
       gameOver ||
-      splashPanel.classList.contains("show")
+      isPreGameScreenVisible()
     ) {
       return;
     }
@@ -880,7 +953,7 @@ function updateBonusTileHints() {
   const shouldHighlight = (
     remainingTime > 0 &&
     !reviewInProgress &&
-    !splashPanel.classList.contains("show") &&
+    !isPreGameScreenVisible() &&
     (
       round >= 15
         ? remainingTime <= hintStartSeconds
@@ -973,7 +1046,6 @@ function resetGameState() {
   currentSpecialOfferSellerImage = "images/racoon.png";
   currentSpecialOfferState = "hidden";
   currentOfferSummaryData = null;
-  currentTimeOfferSeconds = GAME_CONFIG.timeOfferMinSeconds;
   currentRescueScore = 0;
   currentRivalName = "";
   currentRivalScore = 0;
@@ -1021,8 +1093,10 @@ function updateLanguageToggle() {
 }
 
 function updateLanguageUI() {
+  document.documentElement.lang = currentLanguage;
   timeoutFlash.textContent = copy("timeout");
-  startBtn.textContent = copy("makeFritoPay");
+  playBtn.textContent = copy("startPlaying");
+  startBtn.textContent = copy("startRescuingCats");
   trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
   trapOfferDismissBtn.textContent = copy("dismiss");
   nextBtn.textContent = copy("nextRound");
@@ -1066,10 +1140,21 @@ function showHomeScreen() {
   updateSplashText();
   timeoutFlash.classList.remove("show");
   resultPanel.classList.remove("show");
-  splashPanel.classList.add("show");
+  landingPanel.classList.add("show");
+  splashPanel.classList.remove("show");
   gameEl.classList.add("home-screen-active");
   nextBtn.classList.remove("hidden");
   exitBtn.classList.add("hidden");
+  updateLanguageUI();
+  playHomeScreenAudio();
+}
+
+function showIntroScreen() {
+  landingPanel.classList.remove("show");
+  splashPanel.classList.add("show");
+  timeoutFlash.classList.remove("show");
+  resultPanel.classList.remove("show");
+  gameEl.classList.add("home-screen-active");
   updateLanguageUI();
   playHomeScreenAudio();
 }
@@ -1734,12 +1819,12 @@ function wait(ms) {
 
 function formatBonusLine(delta) {
   if (delta > 0) {
-    return `Earned bonus: +${delta} second${delta === 1 ? "" : "s"}`;
+    return copy("earnedBonusLine", delta);
   }
   if (delta < 0) {
-    return `Frito steals ${Math.abs(delta)} second${Math.abs(delta) === 1 ? "" : "s"} for your next round`;
+    return copy("fritoStealsLine", Math.abs(delta));
   }
-  return "Earned bonus: +0 seconds";
+  return copy("noBonusLine");
 }
 
 function randomFakePlayerName() {
@@ -1804,13 +1889,21 @@ function getExitOfferOption() {
   };
 }
 
-function getTimeOfferSeconds(hairballCount = currentTimeOfferSeconds) {
+function canShowTimeOffer() {
+  return totalHairballs > 0;
+}
+
+function getTimeOfferCost() {
+  return totalHairballs;
+}
+
+function getTimeOfferSeconds(hairballCount = getTimeOfferCost()) {
   return hairballCount * 2;
 }
 
 function getSpecialOfferOptions(roundNumber = round) {
   if (nextRoundTime <= 5) {
-    return [getTimeOfferOption()];
+    return canShowTimeOffer() ? [getTimeOfferOption()] : [];
   }
 
   if (roundNumber === GAME_CONFIG.muteOfferRound) {
@@ -1841,7 +1934,7 @@ function getSpecialOfferOptions(roundNumber = round) {
       offerPool.push(getExitOfferOption());
     }
 
-    if (roundNumber >= GAME_CONFIG.timeOfferStartsAtRound) {
+    if (roundNumber >= GAME_CONFIG.timeOfferStartsAtRound && canShowTimeOffer()) {
       offerPool.push(getTimeOfferOption());
     }
 
@@ -1884,7 +1977,6 @@ function hideTrapOffer() {
   currentSpecialOfferSellerImage = "images/racoon.png";
   currentSpecialOfferState = "hidden";
   currentOfferSummaryData = null;
-  currentTimeOfferSeconds = GAME_CONFIG.timeOfferMinSeconds;
   trapOfferSeller.src = "images/racoon.png";
   trapOfferMessage.textContent = "";
   trapOfferMessage.classList.add("hidden");
@@ -1902,9 +1994,6 @@ function renderSpecialOffer(options) {
   currentSpecialOfferOptions = options;
   currentSpecialOfferState = "offer";
   currentOfferSummaryData = null;
-  if (options[0]?.kind !== "time") {
-    currentTimeOfferSeconds = GAME_CONFIG.timeOfferMinSeconds;
-  }
   trapOffer.classList.remove("hidden", "purchased", "compact");
   trapOfferSummary.classList.add("hidden");
   trapOfferRows.classList.remove("hidden");
@@ -1918,7 +2007,7 @@ function renderSpecialOffer(options) {
   trapOfferSeller.src = currentSpecialOfferSellerImage;
 
   if (currentSpecialOfferKind === "time") {
-    trapOfferMessage.textContent = copy("tradeHairballs");
+    trapOfferMessage.textContent = copy("tradeHairballs", getTimeOfferCost(), getTimeOfferSeconds());
     trapOfferMessage.classList.remove("hidden");
     trapOfferNote.textContent = "";
     trapOfferNote.classList.add("hidden");
@@ -1975,7 +2064,7 @@ function renderSpecialOffer(options) {
       : isExitOffer
         ? `<div class="trap-offer-row-button" aria-hidden="true">${copy("exit")}</div>`
       : `<img class="trap-offer-row-image" src="${isTimeOffer ? "images/time.png" : tier.image}" alt="" />`;
-    const rowCost = isTimeOffer ? currentTimeOfferSeconds : option.cost;
+    const rowCost = isTimeOffer ? getTimeOfferCost() : option.cost;
     return `
       <div class="trap-offer-row${isTimeOffer ? " trap-offer-row-time" : ""}">
         ${rowVisual}
@@ -1983,13 +2072,6 @@ function renderSpecialOffer(options) {
           <div class="trap-offer-row-title">${rowTitle}</div>
           <div class="trap-offer-row-meta">${rowCost} ${copy("hairballUnit", rowCost)}</div>
         </div>
-        ${isTimeOffer ? `
-          <div class="time-offer-stepper">
-            <button class="time-offer-step" type="button" data-step="1" aria-label="Increase time">▲</button>
-            <div class="time-offer-count">${currentTimeOfferSeconds}</div>
-            <button class="time-offer-step" type="button" data-step="-1" aria-label="Decrease time">▼</button>
-          </div>
-        ` : ""}
         <button class="cta-btn trap-offer-buy" type="button" data-offer-id="${option.offerId}">${copy("buy")}</button>
       </div>
     `;
@@ -2042,7 +2124,19 @@ function showTrapOfferInsufficient() {
 }
 
 function renderRoundResultText() {
-  resultText.innerHTML = `<strong>${copy("catsRescued", rescuedThisRound, targetCats)}</strong>`;
+  const lines = [`<strong>${copy("catsRescued", rescuedThisRound, targetCats)}</strong>`];
+
+  if (round === GAME_CONFIG.startingRound) {
+    lines.push(`<span class="bonus-line">${copy("firstRoundHurry", GAME_CONFIG.onboardingTimeStealSeconds, nextRoundTime)}</span>`);
+  } else if (currentResultBonusLine) {
+    lines.push(`<span class="bonus-line">${currentResultBonusLine}</span>`);
+  }
+
+  currentResultExtraLines.forEach(line => {
+    lines.push(`<span class="bonus-line">${line}</span>`);
+  });
+
+  resultText.innerHTML = lines.join("<br>");
 }
 
 function showResult() {
@@ -2082,6 +2176,10 @@ function showResult() {
     totalHairballs += yarnHairballsEarnedThisRound;
   }
 
+  if (round === GAME_CONFIG.startingRound) {
+    delta -= GAME_CONFIG.onboardingTimeStealSeconds;
+  }
+
   nextRoundTime = roundTime + delta + clockDelta;
   gameOver = nextRoundTime < GAME_CONFIG.minimumNextRoundTimeSeconds;
   resultTitle.textContent = getRoundResultTitle();
@@ -2090,10 +2188,10 @@ function showResult() {
   currentResultBonusLine = bonusLine;
   currentResultExtraLines = [];
   if (bonusClockEarnedThisRound) {
-    currentResultExtraLines.push(`⏰ You earned ${GAME_CONFIG.bonusClockSeconds} second${GAME_CONFIG.bonusClockSeconds === 1 ? "" : "s"}`);
+    currentResultExtraLines.push(copy("earnedClockLine", GAME_CONFIG.bonusClockSeconds));
   }
   if (yarnHairballsEarnedThisRound > 0) {
-    currentResultExtraLines.push(`🧶 You earned ${yarnHairballsEarnedThisRound} Hairball${yarnHairballsEarnedThisRound === 1 ? "" : "s"}`);
+    currentResultExtraLines.push(copy("earnedHairballLine", yarnHairballsEarnedThisRound));
   }
   updateSummaryTexts();
   const totalCatsSeen = totalRescuedCats + totalMissedCats;
@@ -2142,6 +2240,7 @@ function showResult() {
 }
 
 async function beginRound() {
+  landingPanel.classList.remove("show");
   splashPanel.classList.remove("show");
   gameEl.classList.remove("home-screen-active");
   resultPanel.classList.remove("show");
@@ -2171,6 +2270,11 @@ function initGame() {
   showHomeScreen();
 }
 
+playBtn.addEventListener("click", () => {
+  ensureAudio();
+  showIntroScreen();
+});
+
 startBtn.addEventListener("click", () => {
   ensureAudio();
   beginRound();
@@ -2182,7 +2286,10 @@ languageToggle.addEventListener("click", event => {
     return;
   }
 
-  currentLanguage = button.dataset.lang;
+  if (!setCurrentLanguage(button.dataset.lang, { persist: true })) {
+    return;
+  }
+
   updateLanguageUI();
 });
 
@@ -2204,21 +2311,6 @@ nextBtn.addEventListener("click", () => {
 });
 
 trapOfferRows.addEventListener("click", event => {
-  const stepButton = event.target.closest(".time-offer-step");
-  if (stepButton) {
-    const timeOfferActive = currentSpecialOfferOptions.some(option => option.kind === "time");
-    if (!timeOfferActive) return;
-
-    const step = Number(stepButton.dataset.step || "0");
-    currentTimeOfferSeconds = clamp(
-      currentTimeOfferSeconds + step,
-      GAME_CONFIG.timeOfferMinSeconds,
-      GAME_CONFIG.timeOfferMaxSeconds
-    );
-    renderSpecialOffer(currentSpecialOfferOptions);
-    return;
-  }
-
   const buyButton = event.target.closest(".trap-offer-buy");
   if (!buyButton) return;
 
@@ -2234,7 +2326,7 @@ trapOfferRows.addEventListener("click", event => {
   }
 
   const purchaseCost = selectedOption.kind === "time"
-    ? currentTimeOfferSeconds
+    ? getTimeOfferCost()
     : selectedOption.cost;
 
   if (totalHairballs < purchaseCost) {
@@ -2293,6 +2385,18 @@ window.addEventListener("blur", pauseAppAudioForVisibility);
 window.addEventListener("focus", () => {
   if (!document.hidden) {
     resumeAppAudioFromVisibility();
+  }
+});
+
+setCurrentLanguage(getStoredPreferredLanguage() || detectPreferredLanguage());
+
+window.addEventListener("languagechange", () => {
+  if (getStoredPreferredLanguage()) {
+    return;
+  }
+
+  if (setCurrentLanguage(detectPreferredLanguage())) {
+    updateLanguageUI();
   }
 });
 
