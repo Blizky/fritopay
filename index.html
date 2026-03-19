@@ -62,44 +62,40 @@
       <div class="overlay-panel" id="resultPanel">
         <div class="overlay-title" id="resultTitle">Round Over</div>
         <div class="overlay-text" id="resultText"></div>
-        <div class="result-breakdown hidden" id="resultBreakdown"></div>
         <div class="hairball-summary" id="resourceSummary">
-          <div class="hairball-summary-line">
-            <img class="hairball-summary-image" src="images/hairball.png" alt="" />
-            <div class="hairball-summary-text" id="hairballSummaryText">Hairballs: 0</div>
-          </div>
-          <div class="hairball-summary-line">
-            <img class="hairball-summary-image" src="images/time.png" alt="" />
-            <div class="hairball-summary-text" id="timeSummaryText">Time: 0 seconds</div>
-          </div>
+          <div class="result-time-title" id="timeSummaryText">Time for next round</div>
           <div class="result-time-bar" id="resultTimeBar" aria-hidden="true">
             <div class="result-time-bar-track">
               <div class="result-time-bar-loss" id="resultTimeBarLoss"></div>
               <div class="result-time-bar-fill" id="resultTimeBarFill"></div>
               <div class="result-time-bar-gain" id="resultTimeBarGain"></div>
-              <div class="result-time-bar-value" id="resultTimeBarValue">0s</div>
+              <div class="result-time-bar-value" id="resultTimeBarValue">0 + 0 = 0</div>
             </div>
           </div>
         </div>
-        <div class="trap-offer hidden" id="trapOffer">
-          <div class="trap-offer-title">Special Offer</div>
-          <img class="trap-offer-seller" id="trapOfferSeller" src="images/racoon.png" alt="" />
-          <div class="trap-offer-message hidden" id="trapOfferMessage"></div>
-          <div class="trap-offer-note hidden" id="trapOfferNote"></div>
-          <div class="trap-offer-summary hidden" id="trapOfferSummary">
-            <div class="trap-offer-summary-visual" id="trapOfferSummaryVisual">
-              <span class="offer-heart offer-heart-one" aria-hidden="true">❤</span>
-              <span class="offer-heart offer-heart-two" aria-hidden="true">❤</span>
-              <span class="offer-heart offer-heart-three" aria-hidden="true">❤</span>
-              <span class="offer-heart offer-heart-four" aria-hidden="true">❤</span>
-              <div class="trap-offer-summary-item" id="trapOfferSummaryItem">
-                <img class="trap-offer-summary-image" id="trapOfferSummaryImage" src="images/trap.png" alt="" />
+        <div class="result-breakdown hidden" id="resultBreakdown"></div>
+        <div class="trap-offer-overlay hidden" id="trapOfferOverlay">
+          <div class="trap-offer hidden" id="trapOffer">
+            <button class="trap-offer-close" id="trapOfferCloseBtn" type="button" aria-label="Close offer">×</button>
+            <div class="trap-offer-title">Special Offer</div>
+            <img class="trap-offer-seller" id="trapOfferSeller" src="images/racoon.png" alt="" />
+            <div class="trap-offer-message hidden" id="trapOfferMessage"></div>
+            <div class="trap-offer-note hidden" id="trapOfferNote"></div>
+            <div class="trap-offer-summary hidden" id="trapOfferSummary">
+              <div class="trap-offer-summary-visual" id="trapOfferSummaryVisual">
+                <span class="offer-heart offer-heart-one" aria-hidden="true">❤</span>
+                <span class="offer-heart offer-heart-two" aria-hidden="true">❤</span>
+                <span class="offer-heart offer-heart-three" aria-hidden="true">❤</span>
+                <span class="offer-heart offer-heart-four" aria-hidden="true">❤</span>
+                <div class="trap-offer-summary-item" id="trapOfferSummaryItem">
+                  <img class="trap-offer-summary-image" id="trapOfferSummaryImage" src="images/trap.png" alt="" />
+                </div>
               </div>
+              <div class="trap-offer-summary-text" id="trapOfferSummaryText">Trap: 1</div>
             </div>
-            <div class="trap-offer-summary-text" id="trapOfferSummaryText">Trap: 1</div>
+            <div class="trap-offer-rows" id="trapOfferRows"></div>
+            <button class="cta-btn trap-offer-dismiss hidden" id="trapOfferDismissBtn">Oh ok</button>
           </div>
-          <div class="trap-offer-rows" id="trapOfferRows"></div>
-          <button class="cta-btn trap-offer-dismiss hidden" id="trapOfferDismissBtn">Oh ok</button>
         </div>
         <button class="cta-btn" id="nextBtn">Next Round</button>
         <button class="cta-btn cta-btn-exit hidden" id="exitBtn">Exit</button>
@@ -110,6 +106,10 @@
     <div class="bottombar">
       <div class="stats">
         <button class="bottom-exit-btn hidden" id="bottomExitBtn" type="button">Exit</button>
+      </div>
+      <div class="bottom-hairball-display" id="bottomHairballDisplay" aria-hidden="true">
+        <img class="bottom-hairball-image" src="images/hairball.png" alt="" />
+        <span class="bottom-hairball-count" id="bottomHairballCount">0</span>
       </div>
       <button class="mute-toggle hidden" id="muteToggle" type="button" aria-label="Mute">
         🔈

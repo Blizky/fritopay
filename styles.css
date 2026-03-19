@@ -655,9 +655,9 @@ body {
 .bottombar {
   position: relative;
   z-index: 12;
-  padding: 10px 12px 12px;
+  padding: 6px 10px;
   display: grid;
-  gap: 8px;
+  gap: 0;
 }
 
 .stats {
@@ -667,8 +667,36 @@ body {
   gap: 10px;
   font-size: 1rem;
   flex-wrap: wrap;
-  min-height: 38px;
+  min-height: 34px;
   padding-right: 168px;
+}
+
+.bottom-hairball-display {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+.bottom-hairball-image {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.16));
+}
+
+.bottom-hairball-count {
+  color: #6a533f;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .language-toggle {
@@ -785,6 +813,10 @@ body {
     18px;
 }
 
+#resultPanel.offer-modal-active {
+  z-index: 30;
+}
+
 #resultPanel::before,
 #resultPanel::after {
   content: "";
@@ -814,7 +846,6 @@ body {
 
 #resultPanel .overlay-text,
 #resultPanel .hairball-summary,
-#resultPanel .trap-offer,
 #resultPanel #nextBtn,
 #resultPanel #exitBtn {
   width: min(100%, 360px);
@@ -948,6 +979,14 @@ body {
   display: none;
 }
 
+.result-breakdown-title {
+  margin-bottom: 2px;
+  color: #6a5140;
+  font-size: 1.48rem;
+  font-weight: 900;
+  text-align: center;
+}
+
 .result-breakdown-row {
   display: flex;
   align-items: center;
@@ -965,6 +1004,18 @@ body {
   font-weight: 900;
   color: #4f3e49;
   white-space: nowrap;
+}
+
+.result-breakdown-row-total {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 2px solid rgba(221, 198, 181, 0.72);
+}
+
+.result-breakdown-row-total .result-breakdown-label,
+.result-breakdown-row-total .result-breakdown-value {
+  font-weight: 900;
+  color: #573f34;
 }
 
 .home-screen .overlay-title,
@@ -1289,11 +1340,28 @@ body {
   color: #6a5c50;
 }
 
+.trap-offer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(64, 44, 52, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.trap-offer-overlay.hidden {
+  display: none;
+}
+
 .trap-offer {
   position: relative;
+  z-index: 1;
   width: min(100%, 360px);
   min-height: 188px;
-  margin-bottom: 10px;
+  margin: 0;
   padding: 10px 12px 16px;
   border-radius: 16px;
   background:
@@ -1341,10 +1409,33 @@ body {
   display: none;
 }
 
+.trap-offer-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(227, 199, 167, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 248, 235, 0.92);
+  color: #7c5c45;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 6px 12px rgba(120, 97, 108, 0.12),
+    inset 0 -2px 0 rgba(194, 166, 141, 0.14);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .trap-offer-title {
   display: block;
   width: 100%;
-  padding: 8px 16px 8px 88px;
+  padding: 8px 44px 8px 88px;
   border-radius: 999px;
   border: 3px solid #f2deb8;
   background: var(--surface-gold);
@@ -1741,9 +1832,18 @@ body {
   white-space: nowrap;
 }
 
+.result-time-title {
+  width: min(100%, 320px);
+  margin: 0 auto 6px;
+  color: #6c5640;
+  font-size: 1.08rem;
+  font-weight: 900;
+  text-align: center;
+}
+
 .result-time-bar {
   width: min(100%, 320px);
-  margin: -2px auto 2px;
+  margin: 0 auto 8px;
 }
 
 .result-time-bar.hidden {
@@ -1793,14 +1893,14 @@ body {
 .result-time-bar-value {
   position: absolute;
   top: 0;
+  left: 0;
   right: 0;
   bottom: 0;
   z-index: 4;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  min-width: 86px;
-  padding: 0 12px 0 22px;
+  justify-content: center;
+  padding: 0 14px;
   background: none;
   color: #ffffff;
   font-size: 1.02rem;
@@ -1814,14 +1914,15 @@ body {
 
 .time-summary-delta {
   font-weight: 900;
+  color: #ffffff;
 }
 
 .time-summary-delta.positive {
-  color: #2f7fe8;
+  color: #ffffff;
 }
 
 .time-summary-delta.negative {
-  color: #d84a4a;
+  color: #ffffff;
 }
 
 .small-note {

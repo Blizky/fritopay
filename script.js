@@ -85,6 +85,8 @@ const GAME_CONFIG = {
   missedCatsPerPenaltyStep: 1,
   // Seconds removed from the next round for each penalty step.
   missedCatPenaltySeconds: 1,
+  // Seconds removed from the next round for each wrong tile picked.
+  invalidTilePenaltySeconds: 1,
   // If the next round would fall below this time, the game ends.
   minimumNextRoundTimeSeconds: 1,
   // How often the timer bar and timer text update.
@@ -260,6 +262,7 @@ const resultPanel = document.getElementById("resultPanel");
 const resultTitle = document.getElementById("resultTitle");
 const resultText = document.getElementById("resultText");
 const resultBreakdown = document.getElementById("resultBreakdown");
+const trapOfferOverlay = document.getElementById("trapOfferOverlay");
 const trapOffer = document.getElementById("trapOffer");
 const trapOfferSeller = document.getElementById("trapOfferSeller");
 const trapOfferMessage = document.getElementById("trapOfferMessage");
@@ -271,8 +274,10 @@ const trapOfferSummaryImage = document.getElementById("trapOfferSummaryImage");
 const trapOfferSummaryText = document.getElementById("trapOfferSummaryText");
 const trapOfferRows = document.getElementById("trapOfferRows");
 const trapOfferDismissBtn = document.getElementById("trapOfferDismissBtn");
+const trapOfferCloseBtn = document.getElementById("trapOfferCloseBtn");
 const resourceSummary = document.getElementById("resourceSummary");
 const hairballSummaryText = document.getElementById("hairballSummaryText");
+const bottomHairballCount = document.getElementById("bottomHairballCount");
 const timeSummaryText = document.getElementById("timeSummaryText");
 const resultTimeBar = document.getElementById("resultTimeBar");
 const resultTimeBarFill = document.getElementById("resultTimeBarFill");
@@ -330,6 +335,7 @@ let currentRivalScore = 0;
 let resultTimeBarTimeoutIds = [];
 let resultTimeBarFrameId = null;
 let resultTimeBarAnimationToken = 0;
+let trapOfferRevealTimeoutId = null;
 let muteControlUnlocked = false;
 let exitControlUnlocked = false;
 let scoreboardUnlocked = false;
@@ -337,8 +343,8 @@ let moleCatsLostThisRound = 0;
 let currentRoundRescuableCats = targetCats;
 let currentRoundMissedCats = 0;
 let cassetteCount = 0;
-let forcedNextMusicTrackPath = "";
 let isMuted = false;
+let wrongTilesSelectedThisRound = 0;
 let moleRepeatTimeoutId = null;
 let roundCountdownPlayed = false;
 let roundIntroPlayer = null;
@@ -371,6 +377,7 @@ const COPY = {
     `,
     splashTimeNotice: value => `You have ${value} second${value === 1 ? "" : "s"} to find all the cats.`,
     freeHairballWon: "You won a free hairball!",
+    perfectRescueTimeWon: value => `You won +${value} seconds.`,
     startPlaying: "Start playing",
     startAtLevel: value => `Start at level ${value}`,
     clearCache: "Clear cache",
@@ -388,14 +395,15 @@ const COPY = {
     dismiss: "Oh ok",
     dismissInsufficient: "Oh ok 😿",
     hairballs: value => `Hairballs: ${value}`,
+    nextRoundTimeTitle: "Time for next round",
     hairballUnit: value => `Hairball${value === 1 ? "" : "s"}`,
     timeSummaryLabel: "Time",
     timeSummary: value => `Time: ${value} second${value === 1 ? "" : "s"}`,
     secondUnit: value => `second${value === 1 ? "" : "s"}`,
     scoreLabel: value => `Score: ${value}`,
-    perfectRescue: "Perfect Rescue!",
+    perfectRescue: "This makes Frito sad",
     fritoLaughs: "Frito Laughs!",
-    notBad: "Not Bad!",
+    notBad: "This makes Frito happy",
     gameOver: "Game Over",
     catsRescued: (found, total) => `${found} of ${total} cats rescued`,
     rescuableCats: (found, total) => `${found} of ${total} rescuable cats rescued`,
@@ -409,12 +417,17 @@ const COPY = {
     totalCatsMissed: value => `Total cats missed: ${value}`,
     rivalPoints: (name, value) => `${name} got ${value}`,
     totalScore: value => `Total score: ${value}`,
-    resultBreakdownRescued: "Cats rescued",
-    resultBreakdownMoleLost: "Cats lost to mole",
-    resultBreakdownTime: "Time bonus / penalty",
-    resultBreakdownHairballs: "Hairballs earned",
-    resultBreakdownScore: "Score earned",
-    resultBreakdownPerfect: "Perfect rescue",
+    resultScoreTitle: "Score",
+    resultCatsRescuedRow: value => `${value} cat${value === 1 ? "" : "s"} rescued`,
+    resultPerfectRescueRow: "Perfect rescue",
+    resultRoundBonusRow: value => `Completing round ${value}`,
+    resultCatsMissedRow: value => `${value} cat${value === 1 ? "" : "s"} missed`,
+    resultHairballsFoundRow: value => `${value} Hairball${value === 1 ? "" : "s"} found`,
+    resultClocksFoundRow: value => `${value} Clock${value === 1 ? "" : "s"} found`,
+    resultCassettesFoundRow: value => `${value} Cassette${value === 1 ? "" : "s"} found`,
+    resultTotalRow: "Total this round",
+    resultPointsValue: value => `${value} point${value === 1 ? "" : "s"}`,
+    resultSecondsValue: value => `${value} second${Math.abs(value) === 1 ? "" : "s"}`,
     tradeHairballs: (hairballs, seconds) => `Trade all ${hairballs} Hairball${hairballs === 1 ? "" : "s"} for ${seconds} second${seconds === 1 ? "" : "s"}.`,
     muteOfferMessage: "Unlock the mute button.",
     trapsCatchMole: "Traps can catch the mole.",
@@ -456,6 +469,7 @@ const COPY = {
     `,
     splashTimeNotice: value => `Tienes ${value} segundo${value === 1 ? "" : "s"} para encontrar a todos los gatos.`,
     freeHairballWon: "¡Ganaste una bola de pelo gratis!",
+    perfectRescueTimeWon: value => `Ganaste +${value} segundos.`,
     startPlaying: "Empezar a jugar",
     startAtLevel: value => `Empezar en nivel ${value}`,
     clearCache: "Borrar cache",
@@ -473,14 +487,15 @@ const COPY = {
     dismiss: "Ah, ok",
     dismissInsufficient: "Ah, ok 😿",
     hairballs: value => `Bolas de pelo: ${value}`,
+    nextRoundTimeTitle: "Tiempo para la próxima ronda",
     hairballUnit: value => `bola${value === 1 ? "" : "s"} de pelo`,
     timeSummaryLabel: "Tiempo",
     timeSummary: value => `Tiempo: ${value} segundo${value === 1 ? "" : "s"}`,
     secondUnit: value => `segundo${value === 1 ? "" : "s"}`,
     scoreLabel: value => `Puntos: ${value}`,
-    perfectRescue: "¡Rescate perfecto!",
+    perfectRescue: "Esto pone triste a Frito",
     fritoLaughs: "¡Frito se ríe!",
-    notBad: "Nada mal",
+    notBad: "Esto pone feliz a Frito",
     gameOver: "Fin del juego",
     catsRescued: (found, total) => `${found} de ${total} gatos rescatados`,
     rescuableCats: (found, total) => `${found} de ${total} gatos rescatables rescatados`,
@@ -494,12 +509,17 @@ const COPY = {
     totalCatsMissed: value => `Total de gatos perdidos: ${value}`,
     rivalPoints: (name, value) => `${name} consiguió ${value}`,
     totalScore: value => `Puntuación total: ${value}`,
-    resultBreakdownRescued: "Gatos rescatados",
-    resultBreakdownMoleLost: "Gatos perdidos por topo",
-    resultBreakdownTime: "Tiempo bonus / penalización",
-    resultBreakdownHairballs: "Bolas ganadas",
-    resultBreakdownScore: "Puntos ganados",
-    resultBreakdownPerfect: "Rescate perfecto",
+    resultScoreTitle: "Puntos",
+    resultCatsRescuedRow: value => `${value} gato${value === 1 ? "" : "s"} rescatado${value === 1 ? "" : "s"}`,
+    resultPerfectRescueRow: "Rescate perfecto",
+    resultRoundBonusRow: value => `Completar ronda ${value}`,
+    resultCatsMissedRow: value => `${value} gato${value === 1 ? "" : "s"} perdido${value === 1 ? "" : "s"}`,
+    resultHairballsFoundRow: value => `${value} bola${value === 1 ? "" : "s"} de pelo encontrada${value === 1 ? "" : "s"}`,
+    resultClocksFoundRow: value => `${value} reloj${value === 1 ? "" : "es"} encontrado${value === 1 ? "" : "s"}`,
+    resultCassettesFoundRow: value => `${value} cassette${value === 1 ? "" : "s"} encontrado${value === 1 ? "" : "s"}`,
+    resultTotalRow: "Total de esta ronda",
+    resultPointsValue: value => `${value} punto${value === 1 ? "" : "s"}`,
+    resultSecondsValue: value => `${value} segundo${Math.abs(value) === 1 ? "" : "s"}`,
     tradeHairballs: (hairballs, seconds) => `Cambia tus ${hairballs} bola${hairballs === 1 ? "" : "s"} de pelo por ${seconds} segundo${seconds === 1 ? "" : "s"}.`,
     muteOfferMessage: "Desbloquea el botón de silencio.",
     trapsCatchMole: "Las trampas pueden atrapar al topo.",
@@ -555,7 +575,6 @@ function getDefaultStoredProgress() {
     muteUnlocked: false,
     exitUnlocked: false,
     scoreboardUnlocked: false,
-    cassetteCount: 0,
     checkpoints: {}
   };
 }
@@ -602,7 +621,6 @@ function getStoredProgress() {
       muteUnlocked: Boolean(parsedProgress?.muteUnlocked),
       exitUnlocked: Boolean(parsedProgress?.exitUnlocked),
       scoreboardUnlocked: Boolean(parsedProgress?.scoreboardUnlocked),
-      cassetteCount: clamp(Number(parsedProgress?.cassetteCount) || 0, 0, GAME_CONFIG.maxCassetteMusicTracks - 1),
       checkpoints: sanitizeStoredCheckpoints(parsedProgress?.checkpoints)
     };
   } catch {
@@ -616,7 +634,6 @@ function persistStoredProgress() {
       muteUnlocked: muteControlUnlocked,
       exitUnlocked: exitControlUnlocked,
       scoreboardUnlocked,
-      cassetteCount,
       checkpoints: getStoredProgress().checkpoints
     }));
   } catch {}
@@ -627,7 +644,7 @@ function applyStoredProgress() {
   muteControlUnlocked = storedProgress.muteUnlocked;
   exitControlUnlocked = storedProgress.exitUnlocked;
   scoreboardUnlocked = storedProgress.scoreboardUnlocked;
-  cassetteCount = storedProgress.cassetteCount;
+  cassetteCount = 0;
 }
 
 function clearStoredProgress() {
@@ -669,7 +686,6 @@ function saveCheckpointSnapshot(checkpointRound) {
     muteUnlocked: muteControlUnlocked,
     exitUnlocked: exitControlUnlocked,
     scoreboardUnlocked,
-    cassetteCount,
     checkpoints: {
       ...storedProgress.checkpoints,
       [checkpointRound]: buildCheckpointSnapshot()
@@ -739,7 +755,6 @@ function applyCheckpointSnapshot(snapshot) {
   currentRoundScore = 0;
   currentRivalName = "";
   currentRivalScore = 0;
-  forcedNextMusicTrackPath = "";
   rescuedThisRound = 0;
   bonusClockEarnedThisRound = false;
   clockTilesSelectedThisRound = 0;
@@ -747,6 +762,7 @@ function applyCheckpointSnapshot(snapshot) {
   earnedHairballThisRound = false;
   yarnHairballsEarnedThisRound = 0;
   yarnTilesSelectedThisRound = 0;
+  wrongTilesSelectedThisRound = 0;
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
@@ -924,19 +940,27 @@ function formatSignedValue(value, unit = "") {
   return `${sign}${absoluteValue}${unitSuffix}`;
 }
 
-function formatTimeSummaryMarkup() {
+function formatBreakdownPoints(value) {
+  return copy("resultPointsValue", value);
+}
+
+function formatBreakdownSeconds(value) {
+  return copy("resultSecondsValue", value);
+}
+
+function formatTimeBarValueMarkup() {
   const delta = nextRoundTime - roundTime;
   if (delta === 0) {
-    return `${copy("timeSummaryLabel")}: ${roundTime} ${copy("secondUnit", roundTime)}`;
+    return `${roundTime}`;
   }
 
   const deltaSign = delta > 0 ? "+" : "-";
   const deltaClass = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
   const absoluteDelta = Math.abs(delta);
 
-  return `${copy("timeSummaryLabel")}: ${roundTime} ` +
-    `<span class="time-summary-delta ${deltaClass}">${deltaSign}${absoluteDelta}</span> = ` +
-    `${nextRoundTime} ${copy("secondUnit", nextRoundTime)}`;
+  return `${roundTime} ` +
+    `<span class="time-summary-delta ${deltaClass}">${deltaSign} ${absoluteDelta}</span> = ` +
+    `${nextRoundTime}`;
 }
 
 function clearResultTimeBarAnimation() {
@@ -949,9 +973,16 @@ function clearResultTimeBarAnimation() {
   resultTimeBarAnimationToken += 1;
 }
 
-function setResultTimeBarValue(value) {
+function clearTrapOfferRevealTimeout() {
+  if (trapOfferRevealTimeoutId !== null) {
+    clearTimeout(trapOfferRevealTimeoutId);
+    trapOfferRevealTimeoutId = null;
+  }
+}
+
+function setResultTimeBarValue(markup) {
   if (!resultTimeBarValue) return;
-  resultTimeBarValue.textContent = `${Math.max(0, Math.round(value))}s`;
+  resultTimeBarValue.innerHTML = markup;
 }
 
 function animateResultTimeBarValue(fromValue, toValue, durationMs, delayMs = 0, token = resultTimeBarAnimationToken) {
@@ -1028,7 +1059,7 @@ function applyResultTimeBarState() {
     resultTimeBarFill.style.width = `${baseWidthPct}%`;
   }
 
-  setResultTimeBarValue(nextRoundTime);
+  setResultTimeBarValue(formatTimeBarValueMarkup());
 }
 
 function playResultTimeBarAnimation() {
@@ -1041,7 +1072,6 @@ function playResultTimeBarAnimation() {
   const baseDurationMs = Math.max(1, Math.round(Math.max(roundTime, 0) * 60));
   const deltaDurationMs = Math.max(1, Math.round(Math.abs(delta) * 200));
   const pauseMs = 200;
-  const animationToken = resultTimeBarAnimationToken;
 
   resultTimeBar.classList.remove("hidden");
   resultTimeBarFill.style.transition = "none";
@@ -1052,12 +1082,11 @@ function playResultTimeBarAnimation() {
   resultTimeBarLoss.style.width = "0%";
   resultTimeBarGain.style.left = `${baseWidthPct}%`;
   resultTimeBarGain.style.width = "0%";
-  setResultTimeBarValue(0);
+  setResultTimeBarValue(formatTimeBarValueMarkup());
   void resultTimeBar.offsetWidth;
 
   resultTimeBarFill.style.transition = `width ${baseDurationMs}ms linear`;
   resultTimeBarFill.style.width = `${baseWidthPct}%`;
-  animateResultTimeBarValue(0, roundTime, baseDurationMs, 0, animationToken);
 
   if (delta === 0) {
     return;
@@ -1069,7 +1098,6 @@ function playResultTimeBarAnimation() {
       resultTimeBarLoss.style.width = `${Math.max(0, baseWidthPct - nextWidthPct)}%`;
       resultTimeBarFill.style.transition = `width ${deltaDurationMs}ms linear`;
       resultTimeBarFill.style.width = `${nextWidthPct}%`;
-      animateResultTimeBarValue(roundTime, nextRoundTime, deltaDurationMs, 0, animationToken);
       return;
     }
 
@@ -1078,7 +1106,6 @@ function playResultTimeBarAnimation() {
     void resultTimeBarGain.offsetWidth;
     resultTimeBarGain.style.transition = `width ${deltaDurationMs}ms linear`;
     resultTimeBarGain.style.width = `${Math.max(0, nextWidthPct - baseWidthPct)}%`;
-    animateResultTimeBarValue(roundTime, nextRoundTime, deltaDurationMs, 0, animationToken);
   }, baseDurationMs + pauseMs);
 
   resultTimeBarTimeoutIds.push(phaseTimeoutId);
@@ -1152,19 +1179,10 @@ function playTrack(name, { loop = false, volume = 1 } = {}) {
   return playAudioSource(AUDIO_TRACKS[name], { loop, volume });
 }
 
-function getUnlockedMusicTrackPaths() {
-  const unlockedTrackTotal = clamp(cassetteCount + 1, 1, GAME_CONFIG.maxCassetteMusicTracks);
-  return CASSETTE_MUSIC_TRACKS.slice(0, unlockedTrackTotal);
-}
-
 function getNextRoundMusicTrackPath() {
-  const unlockedTrackPaths = getUnlockedMusicTrackPaths();
-  const forcedTrackPath = unlockedTrackPaths.includes(forcedNextMusicTrackPath)
-    ? forcedNextMusicTrackPath
-    : "";
-
-  forcedNextMusicTrackPath = "";
-  return forcedTrackPath || randomFrom(unlockedTrackPaths);
+  return CASSETTE_MUSIC_TRACKS[
+    clamp(cassetteCount, 0, GAME_CONFIG.maxCassetteMusicTracks - 1)
+  ];
 }
 
 function stopAllAudioPlayers() {
@@ -1725,6 +1743,7 @@ function resetGameState() {
   earnedHairballThisRound = false;
   yarnHairballsEarnedThisRound = 0;
   yarnTilesSelectedThisRound = 0;
+  wrongTilesSelectedThisRound = 0;
   currentTrapTierIndex = 0;
   diamondTrapFailed = false;
   currentSpecialOfferOptions = [];
@@ -1736,7 +1755,6 @@ function resetGameState() {
   currentRoundScore = 0;
   currentRivalName = "";
   currentRivalScore = 0;
-  forcedNextMusicTrackPath = "";
   hideMoleRunner(true);
   hideTrapRunner(true);
   moleCatsLostThisRound = 0;
@@ -1756,8 +1774,14 @@ function getScaledReviewStepDelay() {
 }
 
 function updateSummaryTexts() {
-  hairballSummaryText.textContent = copy("hairballs", totalHairballs);
-  timeSummaryText.innerHTML = formatTimeSummaryMarkup();
+  if (hairballSummaryText) {
+    hairballSummaryText.textContent = copy("hairballs", totalHairballs);
+  }
+  if (bottomHairballCount) {
+    bottomHairballCount.textContent = String(totalHairballs);
+  }
+  timeSummaryText.textContent = copy("nextRoundTimeTitle");
+  setResultTimeBarValue(formatTimeBarValueMarkup());
   applyResultTimeBarState();
 }
 
@@ -2416,20 +2440,6 @@ function getColumnIndexes(columnIndex) {
   return Array.from({ length: currentRows }, (_, rowIndex) => rowIndex * currentCols + columnIndex);
 }
 
-function findCassetteRelocationIndex(excludedIndexes = []) {
-  const excludedSet = new Set(excludedIndexes);
-  const candidateIndexes = Array.from({ length: tiles.length }, (_, index) => index).filter(index => {
-    if (excludedSet.has(index)) return false;
-
-    const tileData = tiles[index];
-    if (!tileData || tileData.state !== "idle" || tileData.selected) return false;
-
-    return !tileData.isCat && !tileData.isClock && !tileData.isYarn && !tileData.isCassette && !tileData.isEmpty;
-  });
-
-  return candidateIndexes.length > 0 ? randomFrom(candidateIndexes) : -1;
-}
-
 async function triggerMoleColumnSwap() {
   moleEventTriggeredThisRound = true;
   moleSwapInProgress = true;
@@ -2455,9 +2465,6 @@ async function triggerMoleColumnSwap() {
   const columnIndex = Math.floor(Math.random() * currentCols);
   const columnIndexes = getColumnIndexes(columnIndex);
   const columnElements = columnIndexes.map(index => boardEl.children[index]);
-  const cassetteToRelocate = columnIndexes
-    .map(index => ({ index, tileData: tiles[index] }))
-    .find(({ tileData }) => tileData && tileData.isCassette && tileData.state === "idle");
   const outgoingCatCount = columnIndexes.filter(index => tiles[index].isCat).length;
   moleCatsLostThisRound += outgoingCatCount;
   currentRoundRescuableCats = getRescuableCatCount();
@@ -2499,15 +2506,6 @@ async function triggerMoleColumnSwap() {
     boardEl.replaceChild(emptyTile, boardEl.children[index]);
   });
 
-  if (cassetteToRelocate) {
-    const relocationIndex = findCassetteRelocationIndex(columnIndexes);
-    if (relocationIndex !== -1) {
-      tiles[relocationIndex] = cassetteToRelocate.tileData;
-      const relocatedCassetteTile = createTileButton(relocationIndex);
-      boardEl.replaceChild(relocatedCassetteTile, boardEl.children[relocationIndex]);
-    }
-  }
-
   const moleExitPromise = animateMoleRunnerOut(moleMetrics);
   await moleExitPromise;
 
@@ -2534,6 +2532,7 @@ async function startReview() {
   earnedHairballThisRound = false;
   yarnHairballsEarnedThisRound = 0;
   yarnTilesSelectedThisRound = 0;
+  wrongTilesSelectedThisRound = 0;
 
   for (const idx of selectedIndexes) {
     const t = tiles[idx];
@@ -2542,6 +2541,7 @@ async function startReview() {
     if (t.isCat && t.state === "idle") {
       rescuedThisRound++;
       t.state = "rescued";
+      t.selected = false;
       el.classList.remove("selected");
       el.classList.add("good");
       fanfare(el);
@@ -2550,6 +2550,7 @@ async function startReview() {
       bonusClockEarnedThisRound = true;
       clockTilesSelectedThisRound++;
       t.state = "bonus";
+      t.selected = false;
       el.classList.remove("selected");
       el.classList.add("good");
       fanfare(el);
@@ -2557,24 +2558,26 @@ async function startReview() {
       yarnTilesSelectedThisRound++;
       yarnHairballsEarnedThisRound += GAME_CONFIG.bonusYarnHairballs;
       t.state = "bonus";
+      t.selected = false;
       el.classList.remove("selected");
       el.classList.add("good");
       fanfare(el);
     } else if (t.isCassette && t.state === "idle") {
       cassetteTilesSelectedThisRound++;
       cassetteCount = clamp(cassetteCount + 1, 0, GAME_CONFIG.maxCassetteMusicTracks - 1);
-      forcedNextMusicTrackPath = CASSETTE_MUSIC_TRACKS[Math.min(cassetteCount, GAME_CONFIG.maxCassetteMusicTracks - 1)];
       persistStoredProgress();
       t.state = "bonus";
+      t.selected = false;
       el.classList.remove("selected");
       el.classList.add("good");
       fanfare(el);
     } else if (!t.isCat) {
       t.state = "wrong";
+      wrongTilesSelectedThisRound++;
+      t.selected = false;
       el.classList.remove("selected");
       el.classList.add("bad");
       playBadSound();
-      nullifyOneCat();
     }
 
     await wait(reviewStepDelay);
@@ -2817,8 +2820,13 @@ function getSpecialOfferOptions(roundNumber = round) {
 }
 
 function hideTrapOffer() {
+  clearTrapOfferRevealTimeout();
+  if (trapOfferOverlay) {
+    trapOfferOverlay.classList.add("hidden");
+  }
   trapOffer.classList.add("hidden");
   trapOffer.classList.remove("purchased", "compact");
+  resultPanel.classList.remove("offer-modal-active");
   trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
   currentSpecialOfferOptions = [];
   currentSpecialOfferKind = "trap";
@@ -2843,6 +2851,10 @@ function renderSpecialOffer(options) {
   currentSpecialOfferOptions = options;
   currentSpecialOfferState = "offer";
   currentOfferSummaryData = null;
+  if (trapOfferOverlay) {
+    trapOfferOverlay.classList.remove("hidden");
+  }
+  resultPanel.classList.add("offer-modal-active");
   trapOffer.classList.remove("hidden", "purchased", "compact");
   trapOfferSummary.classList.add("hidden");
   trapOfferSummaryVisual.classList.remove("celebrate");
@@ -2939,6 +2951,10 @@ function showPurchasedOfferSummary(summaryData) {
   const productLabel = getPurchasedProductLabel(summaryData.kind, summaryData.tierId);
   const purchaseMessage = copy("purchaseMessage", productLabel);
 
+  if (trapOfferOverlay) {
+    trapOfferOverlay.classList.remove("hidden");
+  }
+  resultPanel.classList.add("offer-modal-active");
   trapOffer.classList.remove("hidden", "compact");
   trapOffer.classList.add("purchased");
   trapOfferSeller.src = currentSpecialOfferSellerImage;
@@ -2959,6 +2975,10 @@ function showPurchasedOfferSummary(summaryData) {
 
 function showTrapOfferInsufficient() {
   currentSpecialOfferState = "insufficient";
+  if (trapOfferOverlay) {
+    trapOfferOverlay.classList.remove("hidden");
+  }
+  resultPanel.classList.add("offer-modal-active");
   trapOffer.classList.remove("hidden", "purchased", "compact");
   trapOfferSummaryVisual.classList.remove("celebrate");
   trapOfferSeller.src = currentSpecialOfferKind === "trap"
@@ -2982,12 +3002,10 @@ function renderRoundResultText() {
 
   resultText.classList.remove("game-over-text");
   resultText.innerHTML = `
-    <strong>${copy(
-      "catsRescued",
-      currentRoundResultSummary.rescued,
-      currentRoundResultSummary.rescuable
-    )}</strong>
-    ${currentRoundResultSummary.perfectRescue ? `<div class="result-free-hairball">${copy("freeHairballWon")}</div>` : ""}
+    ${currentRoundResultSummary.perfectRescue ? `
+      <div class="result-free-hairball">${copy("freeHairballWon")}</div>
+      <div class="result-free-hairball">${copy("perfectRescueTimeWon", GAME_CONFIG.perfectRescueBonusSeconds)}</div>
+    ` : ""}
   `;
 }
 
@@ -3000,33 +3018,51 @@ function renderResultBreakdown() {
 
   const rows = [
     {
-      label: copy("resultBreakdownRescued"),
-      value: `${currentRoundResultSummary.rescued} / ${currentRoundResultSummary.rescuable}`
+      label: copy("resultCatsRescuedRow", currentRoundResultSummary.rescued),
+      value: formatBreakdownPoints(currentRoundResultSummary.rescuedPoints),
+      amount: currentRoundResultSummary.rescuedPoints
     },
     {
-      label: copy("resultBreakdownMoleLost"),
-      value: currentRoundResultSummary.moleLost
+      label: copy("resultPerfectRescueRow"),
+      value: formatBreakdownPoints(currentRoundResultSummary.perfectRescuePoints),
+      amount: currentRoundResultSummary.perfectRescuePoints
     },
     {
-      label: copy("resultBreakdownTime"),
-      value: formatSignedValue(currentRoundResultSummary.timeDelta, "s")
+      label: copy("resultRoundBonusRow", currentRoundResultSummary.roundNumber),
+      value: formatBreakdownPoints(currentRoundResultSummary.roundBonusPoints),
+      amount: currentRoundResultSummary.roundBonusPoints
     },
     {
-      label: copy("resultBreakdownHairballs"),
-      value: formatSignedValue(currentRoundResultSummary.hairballsEarned)
+      label: copy("resultHairballsFoundRow", currentRoundResultSummary.hairballsFound),
+      value: formatBreakdownPoints(currentRoundResultSummary.hairballPoints),
+      amount: currentRoundResultSummary.hairballPoints
     },
     {
-      label: copy("resultBreakdownScore"),
-      value: formatSignedValue(currentRoundResultSummary.scoreEarned)
+      label: copy("resultClocksFoundRow", currentRoundResultSummary.clocksFound),
+      value: formatBreakdownPoints(currentRoundResultSummary.clockPoints),
+      amount: currentRoundResultSummary.clockPoints
+    },
+    {
+      label: copy("resultCassettesFoundRow", currentRoundResultSummary.cassettesFound),
+      value: formatBreakdownPoints(currentRoundResultSummary.cassettePoints),
+      amount: currentRoundResultSummary.cassettePoints
+    },
+    {
+      label: copy("resultTotalRow"),
+      value: formatBreakdownPoints(currentRoundResultSummary.scoreEarned),
+      total: true
     }
-  ];
+  ].filter(row => row.total || row.amount > 0);
 
-  resultBreakdown.innerHTML = rows.map(row => `
-    <div class="result-breakdown-row">
+  resultBreakdown.innerHTML = `
+    <div class="result-breakdown-title">${copy("resultScoreTitle")}</div>
+    ${rows.map(row => `
+    <div class="result-breakdown-row${row.total ? " result-breakdown-row-total" : ""}">
       <span class="result-breakdown-label">${row.label}</span>
       <span class="result-breakdown-value">${row.value}</span>
     </div>
-  `).join("");
+  `).join("")}
+  `;
   resultBreakdown.classList.remove("hidden");
 }
 
@@ -3035,6 +3071,9 @@ function showResult() {
   const missedCats = Math.max(0, rescuableCats - rescuedThisRound);
   const missedCatPenaltyEnabled = round >= GAME_CONFIG.missedCatPenaltyStartsAtRound;
   const perfectRescue = isPerfectRescueThisRound();
+  const wrongTilePenalty = wrongTilesSelectedThisRound * GAME_CONFIG.invalidTilePenaltySeconds;
+  let resultSpecialOfferOptions = [];
+  let shouldRevealOffer = false;
   let delta = 0;
   let clockDelta = 0;
 
@@ -3063,6 +3102,8 @@ function showResult() {
     nextRoundCats = targetCats;
   }
 
+  delta -= wrongTilePenalty;
+
   if (bonusClockEarnedThisRound) {
     clockDelta = GAME_CONFIG.bonusClockSeconds;
   }
@@ -3081,16 +3122,32 @@ function showResult() {
     (perfectRescue ? 3 : 0) +
     round +
     clockTilesSelectedThisRound +
-    yarnTilesSelectedThisRound
+    yarnTilesSelectedThisRound +
+    cassetteTilesSelectedThisRound * 5
   );
   totalScore += currentRoundScore;
   currentRoundResultSummary = {
     rescued: rescuedThisRound,
     rescuable: rescuableCats,
+    missed: missedCats,
     moleLost: moleCatsLostThisRound,
     timeDelta: delta + clockDelta,
     hairballsEarned: (earnedHairballThisRound ? 1 : 0) + yarnHairballsEarnedThisRound,
     scoreEarned: currentRoundScore,
+    rescuedPoints: rescuedThisRound,
+    perfectRescuePoints: perfectRescue ? 3 : 0,
+    roundNumber: round,
+    roundBonusPoints: round,
+    missedSeconds: -(
+      Math.ceil(missedCats / GAME_CONFIG.missedCatsPerPenaltyStep) *
+      GAME_CONFIG.missedCatPenaltySeconds
+    ),
+    hairballsFound: yarnTilesSelectedThisRound,
+    hairballPoints: yarnTilesSelectedThisRound,
+    clocksFound: clockTilesSelectedThisRound,
+    clockPoints: clockTilesSelectedThisRound,
+    cassettesFound: cassetteTilesSelectedThisRound,
+    cassettePoints: cassetteTilesSelectedThisRound * 5,
     perfectRescue
   };
   updateSummaryTexts();
@@ -3123,14 +3180,11 @@ function showResult() {
     renderResultBreakdown();
     resourceSummary.classList.remove("hidden");
     timeNote.textContent = "";
-    const specialOfferOptions = getSpecialOfferOptions(round);
-    const shouldForceTimeOffer = specialOfferOptions.some(option => option.kind === "time");
+    resultSpecialOfferOptions = getSpecialOfferOptions(round);
+    const shouldForceTimeOffer = resultSpecialOfferOptions.some(option => option.kind === "time");
 
-    if (specialOfferOptions.length > 0 && (!trapPurchasedForNextRound || shouldForceTimeOffer)) {
-      renderSpecialOffer(specialOfferOptions);
-    } else {
-      hideTrapOffer();
-    }
+    shouldRevealOffer = resultSpecialOfferOptions.length > 0 && (!trapPurchasedForNextRound || shouldForceTimeOffer);
+    hideTrapOffer();
     nextBtn.textContent = copy("nextRound");
     nextBtn.classList.remove("hidden");
     exitBtn.textContent = copy("exit");
@@ -3139,6 +3193,14 @@ function showResult() {
 
   resultPanel.classList.add("show");
   if (!gameOver) {
+    if (shouldRevealOffer) {
+      clearTrapOfferRevealTimeout();
+      trapOfferRevealTimeoutId = setTimeout(() => {
+        trapOfferRevealTimeoutId = null;
+        if (!resultPanel.classList.contains("show") || gameOver) return;
+        renderSpecialOffer(resultSpecialOfferOptions);
+      }, 1500);
+    }
     playResultTimeBarAnimation();
   }
 }
@@ -3298,6 +3360,10 @@ trapOfferRows.addEventListener("click", event => {
 });
 
 trapOfferDismissBtn.addEventListener("click", () => {
+  hideTrapOffer();
+});
+
+trapOfferCloseBtn.addEventListener("click", () => {
   hideTrapOffer();
 });
 
