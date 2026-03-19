@@ -10,13 +10,11 @@ const GAME_CONFIG = {
   // How many cat tiles the player must find in round 1.
   startingCats: 5,
   // How many seconds the player gets in round 1.
-  startingTimeSeconds: 10,
-  // After round 1, Frito steals this many seconds from round 2.
-  onboardingTimeStealSeconds: 4,
+  startingTimeSeconds: 8,
   // How many new cat targets get added after a perfect rescue.
   catsAddedPerRound: 1,
   // Time bonus for rescuing every cat in the round.
-  perfectRescueBonusSeconds: 1,
+  perfectRescueBonusSeconds: 3,
   // Start offering the mole trap from this round onward.
   trapOfferRound: 7,
   // The first fake trap offer appears at this round.
@@ -26,9 +24,15 @@ const GAME_CONFIG = {
   // The cat first offers the mute button on this round.
   muteOfferRound: 3,
   // Hairball cost to unlock the mute button.
-  muteOfferCostHairballs: 2,
+  muteOfferCostHairballs: 1,
+  // The cat first offers the score board on this round.
+  scoreboardOfferRound: 4,
+  // Hairball cost to unlock the score board.
+  scoreboardOfferCostHairballs: 1,
+  // The cat first offers the exit button on this round.
+  exitOfferRound: 5,
   // Hairball cost to unlock the bottom exit button.
-  exitOfferCostHairballs: 1,
+  exitOfferCostHairballs: 2,
   // Chance a special offer appears after the first tease offer.
   trapOfferChance: 0.8,
   // Start mixing in time trade offers from this round onward.
@@ -48,25 +52,25 @@ const GAME_CONFIG = {
   // Seconds added to the next round when the bonus clock is selected.
   bonusClockSeconds: 1,
   // Start adding a bonus yarn tile from this round onward.
-  bonusYarnStartsAtRound: 5,
+  bonusYarnStartsAtRound: 3,
   // Chance that the bonus yarn appears before the late-game boost.
   bonusYarnChance: 0.45,
   // Chance that the bonus yarn appears from round 11 onward.
   bonusYarnChanceAfterRound10: 0.7,
   // Hairballs added when the bonus yarn is selected.
   bonusYarnHairballs: 1,
-  // Before round 11, bonus hints start when this share of time is left.
-  bonusHintStartRatio: 0.5,
-  // After round 10, bonus hints start later by this amount each round.
-  bonusHintLateRoundStep: 0.04,
-  // After round 10, never let the bonus hint start later than this share of time.
-  bonusHintMinRatio: 0.18,
-  // From round 15 onward, start bonus hints this many seconds before time runs out.
-  bonusHintLateStartSeconds: 1,
-  // After round 15, reduce the hint window by this much each round.
-  bonusHintLateStepSeconds: 0.2,
-  // Never let the late-game hint window shrink below this time.
-  bonusHintLateMinSeconds: 0.2,
+  // Start adding cassette tiles from this round onward.
+  bonusCassetteStartsAtRound: 6,
+  // Chance a cassette tile appears on eligible rounds.
+  bonusCassetteChance: 0.5,
+  // Maximum number of unlockable background music tracks.
+  maxCassetteMusicTracks: 5,
+  // Rounds up to this one keep bonus tiles glowing the whole time.
+  bonusHintAlwaysThroughRound: 5,
+  // Rounds up to this one start bonus glow at 50% remaining time.
+  bonusHintHalfTimeThroughRound: 10,
+  // Rounds up to this one start bonus glow at 25% remaining time.
+  bonusHintQuarterTimeThroughRound: 20,
   // Meter removed when the mole gets trapped instead of firing the column event.
   trapMolePenalty: 0.3,
   // How long the trap reveal takes at the start of a round.
@@ -76,7 +80,7 @@ const GAME_CONFIG = {
   // How long the trap takes to fall away after catching the mole.
   trapExitMs: 220,
   // Missed cats start removing time from this round onward.
-  missedCatPenaltyStartsAtRound: 6,
+  missedCatPenaltyStartsAtRound: 1,
   // Number of missed or canceled cats that count as one time penalty step.
   missedCatsPerPenaltyStep: 1,
   // Seconds removed from the next round for each penalty step.
@@ -94,7 +98,7 @@ const GAME_CONFIG = {
   // How long missed cats stay visible before the result panel opens.
   missedRevealDelayMs: 500,
   // Extra pause after tile checking before the result screen opens.
-  resultScreenDelayMs: 300,
+  resultScreenDelayMs: 1000,
   // How long fanfare and nullification effects stay on screen.
   effectDurationMs: 800,
   // Mole meter value at the start of a new game.
@@ -184,29 +188,34 @@ const AUDIO_TRACKS = {
   rocks: "sound/rocks.mp3"
 };
 
+const CASSETTE_MUSIC_TRACKS = Array.from(
+  { length: GAME_CONFIG.maxCassetteMusicTracks },
+  (_, index) => `sound/music/music${index + 1}.mp3`
+);
+
 const TRAP_TIERS = [
   {
     id: "basic",
     name: "Regular Trap",
     image: "images/trap.png",
     successChance: 0.5,
-    costMin: 2,
-    costMax: 2
+    costMin: 1,
+    costMax: 1
   },
   {
     id: "steel",
     name: "Steel Trap",
     image: "images/steel_trap.png",
     successChance: 0.6,
-    costMin: 3,
-    costMax: 3
+    costMin: 1,
+    costMax: 2
   },
   {
     id: "gold",
     name: "Gold Trap",
     image: "images/gold_trap.png",
     successChance: 0.7,
-    costMin: 4,
+    costMin: 2,
     costMax: 4
   },
   {
@@ -214,7 +223,7 @@ const TRAP_TIERS = [
     name: "Diamond Trap",
     image: "images/diamond_trap.png",
     successChance: 0.8,
-    costMin: 5,
+    costMin: 2,
     costMax: 5
   }
 ];
@@ -225,29 +234,39 @@ const gameEl = document.querySelector(".game");
 const timerLabel = document.getElementById("timerLabel");
 const targetLabel = document.getElementById("targetLabel");
 const roundLabel = document.getElementById("roundLabel");
+const scoreLabel = document.getElementById("scoreLabel");
 const bottomExitBtn = document.getElementById("bottomExitBtn");
 const pickedLabel = document.getElementById("pickedLabel");
 const languageToggle = document.getElementById("languageToggle");
 const muteToggle = document.getElementById("muteToggle");
 const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
+const dirtStrip = document.getElementById("dirtStrip");
 const trapRunner = document.getElementById("trapRunner");
+const trapOutcomeSplash = document.getElementById("trapOutcomeSplash");
+const checkpointList = document.getElementById("checkpointList");
 
 const landingPanel = document.getElementById("landingPanel");
+const landingLanguageToggle = document.getElementById("landingLanguageToggle");
 const splashPanel = document.getElementById("splashPanel");
 const splashText = document.getElementById("splashText");
+const introTimeNote = document.getElementById("introTimeNote");
 const playBtn = document.getElementById("playBtn");
+const clearCacheBtn = document.getElementById("clearCacheBtn");
 const startBtn = document.getElementById("startBtn");
 const timeoutFlash = document.getElementById("timeoutFlash");
 
 const resultPanel = document.getElementById("resultPanel");
 const resultTitle = document.getElementById("resultTitle");
 const resultText = document.getElementById("resultText");
+const resultBreakdown = document.getElementById("resultBreakdown");
 const trapOffer = document.getElementById("trapOffer");
 const trapOfferSeller = document.getElementById("trapOfferSeller");
 const trapOfferMessage = document.getElementById("trapOfferMessage");
 const trapOfferNote = document.getElementById("trapOfferNote");
 const trapOfferSummary = document.getElementById("trapOfferSummary");
+const trapOfferSummaryVisual = document.getElementById("trapOfferSummaryVisual");
+const trapOfferSummaryItem = document.getElementById("trapOfferSummaryItem");
 const trapOfferSummaryImage = document.getElementById("trapOfferSummaryImage");
 const trapOfferSummaryText = document.getElementById("trapOfferSummaryText");
 const trapOfferRows = document.getElementById("trapOfferRows");
@@ -255,6 +274,11 @@ const trapOfferDismissBtn = document.getElementById("trapOfferDismissBtn");
 const resourceSummary = document.getElementById("resourceSummary");
 const hairballSummaryText = document.getElementById("hairballSummaryText");
 const timeSummaryText = document.getElementById("timeSummaryText");
+const resultTimeBar = document.getElementById("resultTimeBar");
+const resultTimeBarFill = document.getElementById("resultTimeBarFill");
+const resultTimeBarLoss = document.getElementById("resultTimeBarLoss");
+const resultTimeBarGain = document.getElementById("resultTimeBarGain");
+const resultTimeBarValue = document.getElementById("resultTimeBarValue");
 const timeNote = document.getElementById("timeNote");
 const nextBtn = document.getElementById("nextBtn");
 const exitBtn = document.getElementById("exitBtn");
@@ -270,10 +294,10 @@ let rescuedThisRound = 0;
 let totalRescuedCats = 0;
 let totalMissedCats = 0;
 let totalHairballs = 0;
+let totalScore = 0;
 let nextRoundTime = roundTime;
 let nextRoundCats = targetCats;
-let currentResultBonusLine = "";
-let currentResultExtraLines = [];
+let currentRoundResultSummary = null;
 let gameOver = false;
 let audioCtx = null;
 let currentRows = GAME_CONFIG.rows;
@@ -286,21 +310,34 @@ let pendingReviewAfterMole = false;
 let trapPurchasedForNextRound = null;
 let activeTrap = null;
 let bonusClockEarnedThisRound = false;
+let clockTilesSelectedThisRound = 0;
+let cassetteTilesSelectedThisRound = 0;
 let currentSpecialOfferOptions = [];
 let currentSpecialOfferKind = "trap";
 let currentSpecialOfferSellerImage = "images/racoon.png";
 let earnedHairballThisRound = false;
 let yarnHairballsEarnedThisRound = 0;
+let yarnTilesSelectedThisRound = 0;
 let currentTrapTierIndex = 0;
 let diamondTrapFailed = false;
 let currentLanguage = "en";
 let currentSpecialOfferState = "hidden";
 let currentOfferSummaryData = null;
 let currentRescueScore = 0;
+let currentRoundScore = 0;
 let currentRivalName = "";
 let currentRivalScore = 0;
+let resultTimeBarTimeoutIds = [];
+let resultTimeBarFrameId = null;
+let resultTimeBarAnimationToken = 0;
 let muteControlUnlocked = false;
 let exitControlUnlocked = false;
+let scoreboardUnlocked = false;
+let moleCatsLostThisRound = 0;
+let currentRoundRescuableCats = targetCats;
+let currentRoundMissedCats = 0;
+let cassetteCount = 0;
+let forcedNextMusicTrackPath = "";
 let isMuted = false;
 let moleRepeatTimeoutId = null;
 let roundCountdownPlayed = false;
@@ -310,8 +347,12 @@ let countdownPlayer = null;
 let roundAudioToken = 0;
 let homeScreenPlayer = null;
 let appAudioPausedByVisibility = false;
+let trapOutcomeSplashTimeoutId = null;
 const activeAudioPlayers = new Set();
+const pendingUiUnlockAnimations = new Set();
 const LANGUAGE_STORAGE_KEY = "fritopay-language";
+const PROGRESS_STORAGE_KEY = "fritopay-progress";
+const CHECKPOINT_ROUNDS = [5, 10, 15, 20];
 
 const COPY = {
   en: {
@@ -320,14 +361,19 @@ const COPY = {
     targetLabel: "Find all the cats",
     rescuedCats: value => `Rescued cats: ${value}`,
     selectedTiles: value => `Selected tiles: ${value}`,
-    splashIntro: seconds => `
-      Frito the Chihuahua is insecure.<br>
-      He doesn't like that cats are bigger than him.<br>
-      He wants to capture all the cats.<br>
-      You need to rescue them.<br><br>
-      You have <strong>${seconds}</strong> seconds to find all the cats.
+    splashIntro: () => `
+      Frito the Chihuahua<br>
+      <strong>don't like that cats</strong><br>
+      are bigger than him 😹<br><br>
+      He wan't to capture all the cats<br>
+      and put them on a 🚀 rocket 😧<br><br>
+      <strong>YOU NEED TO RESCUE THEM 🙀</strong>
     `,
+    splashTimeNotice: value => `You have ${value} second${value === 1 ? "" : "s"} to find all the cats.`,
+    freeHairballWon: "You won a free hairball!",
     startPlaying: "Start playing",
+    startAtLevel: value => `Start at level ${value}`,
+    clearCache: "Clear cache",
     startRescuingCats: "Start rescuing cats",
     timeout: "Time's up",
     roundOver: "Round Over",
@@ -335,16 +381,24 @@ const COPY = {
     nextRound: "Next Round",
     exit: "Exit",
     startOver: "Start over",
+    trapFailed: "Trap failed",
+    moleTrapped: "Mole trapped",
     exitOfferMessage: "Unlock the exit button.",
+    scoreOfferMessage: "Unlock the score board.",
     dismiss: "Oh ok",
+    dismissInsufficient: "Oh ok 😿",
     hairballs: value => `Hairballs: ${value}`,
     hairballUnit: value => `Hairball${value === 1 ? "" : "s"}`,
+    timeSummaryLabel: "Time",
     timeSummary: value => `Time: ${value} second${value === 1 ? "" : "s"}`,
+    secondUnit: value => `second${value === 1 ? "" : "s"}`,
+    scoreLabel: value => `Score: ${value}`,
     perfectRescue: "Perfect Rescue!",
     fritoLaughs: "Frito Laughs!",
     notBad: "Not Bad!",
     gameOver: "Game Over",
     catsRescued: (found, total) => `${found} of ${total} cats rescued`,
+    rescuableCats: (found, total) => `${found} of ${total} rescuable cats rescued`,
     firstRoundHurry: (stolen, left) => `Frito stole ${stolen} second${stolen === 1 ? "" : "s"} from you. You only have ${left} second${left === 1 ? "" : "s"} left, so hurry.`,
     earnedBonusLine: value => `Earned bonus: +${value} second${value === 1 ? "" : "s"}`,
     fritoStealsLine: value => `Frito steals ${value} second${value === 1 ? "" : "s"} for your next round`,
@@ -353,8 +407,14 @@ const COPY = {
     earnedHairballLine: value => `🧶 You earned ${value} Hairball${value === 1 ? "" : "s"}`,
     totalCatsRescued: value => `Total cats rescued: ${value}`,
     totalCatsMissed: value => `Total cats missed: ${value}`,
-    rescueScore: value => `Your Rescue Score is ${value}%`,
-    rivalScore: (name, value) => `${name} score is ${value}%`,
+    rivalPoints: (name, value) => `${name} got ${value}`,
+    totalScore: value => `Total score: ${value}`,
+    resultBreakdownRescued: "Cats rescued",
+    resultBreakdownMoleLost: "Cats lost to mole",
+    resultBreakdownTime: "Time bonus / penalty",
+    resultBreakdownHairballs: "Hairballs earned",
+    resultBreakdownScore: "Score earned",
+    resultBreakdownPerfect: "Perfect rescue",
     tradeHairballs: (hairballs, seconds) => `Trade all ${hairballs} Hairball${hairballs === 1 ? "" : "s"} for ${seconds} second${seconds === 1 ? "" : "s"}.`,
     muteOfferMessage: "Unlock the mute button.",
     trapsCatchMole: "Traps can catch the mole.",
@@ -365,8 +425,15 @@ const COPY = {
     timeOfferSummary: value => `Time: +${value} second${value === 1 ? "" : "s"}`,
     muteOfferTitle: "Mute Game",
     muteOfferSummary: "Mute: 1",
+    scoreOfferTitle: "Score Board",
+    scoreOfferSummary: "Score Board: 1",
     exitOfferTitle: "Exit Button",
     exitOfferSummary: "Exit: 1",
+    purchaseTitle: "Congratulations!",
+    purchaseMessage: product => `You have a new ${product}.`,
+    purchaseProductMute: "Mute button",
+    purchaseProductScoreboard: "Score Board",
+    purchaseProductExit: "Exit button",
     buy: "Buy",
     trap_basic: "Regular Trap",
     trap_steel: "Steel Trap",
@@ -379,14 +446,19 @@ const COPY = {
     targetLabel: "Encuentra todos los gatos",
     rescuedCats: value => `Gatos rescatados: ${value}`,
     selectedTiles: value => `Casillas marcadas: ${value}`,
-    splashIntro: seconds => `
-      Frito el Chihuahua es inseguro.<br>
-      No le gusta que los gatos sean más grandes que él.<br>
-      Quiere capturar a todos los gatos.<br>
-      Tienes que rescatarlos.<br><br>
-      Tienes <strong>${seconds}</strong> segundos para encontrar a todos los gatos.
+    splashIntro: () => `
+      Frito el Chihuahua<br>
+      <strong>no soporta que los gatos</strong><br>
+      sean más grandes que él 😹<br><br>
+      Quiere capturar a todos los gatos<br>
+      y ponerlos en un cohete 🚀 😧<br><br>
+      <strong>TIENES QUE RESCATARLOS 🙀</strong>
     `,
+    splashTimeNotice: value => `Tienes ${value} segundo${value === 1 ? "" : "s"} para encontrar a todos los gatos.`,
+    freeHairballWon: "¡Ganaste una bola de pelo gratis!",
     startPlaying: "Empezar a jugar",
+    startAtLevel: value => `Empezar en nivel ${value}`,
+    clearCache: "Borrar cache",
     startRescuingCats: "Empezar a rescatar gatos",
     timeout: "Se acabó el tiempo",
     roundOver: "Fin de ronda",
@@ -394,16 +466,24 @@ const COPY = {
     nextRound: "Siguiente ronda",
     exit: "Salir",
     startOver: "Empezar de nuevo",
+    trapFailed: "La trampa falló",
+    moleTrapped: "Topo atrapado",
     exitOfferMessage: "Desbloquea el botón de salir.",
+    scoreOfferMessage: "Desbloquea el marcador.",
     dismiss: "Ah, ok",
+    dismissInsufficient: "Ah, ok 😿",
     hairballs: value => `Bolas de pelo: ${value}`,
     hairballUnit: value => `bola${value === 1 ? "" : "s"} de pelo`,
+    timeSummaryLabel: "Tiempo",
     timeSummary: value => `Tiempo: ${value} segundo${value === 1 ? "" : "s"}`,
+    secondUnit: value => `segundo${value === 1 ? "" : "s"}`,
+    scoreLabel: value => `Puntos: ${value}`,
     perfectRescue: "¡Rescate perfecto!",
     fritoLaughs: "¡Frito se ríe!",
     notBad: "Nada mal",
     gameOver: "Fin del juego",
     catsRescued: (found, total) => `${found} de ${total} gatos rescatados`,
+    rescuableCats: (found, total) => `${found} de ${total} gatos rescatables rescatados`,
     firstRoundHurry: (stolen, left) => `Frito te robó ${stolen} segundo${stolen === 1 ? "" : "s"}. Solo te quedan ${left} segundo${left === 1 ? "" : "s"}, así que apúrate.`,
     earnedBonusLine: value => `Bonus ganado: +${value} segundo${value === 1 ? "" : "s"}`,
     fritoStealsLine: value => `Frito te roba ${value} segundo${value === 1 ? "" : "s"} para la próxima ronda`,
@@ -412,8 +492,14 @@ const COPY = {
     earnedHairballLine: value => `🧶 Ganaste ${value} bola${value === 1 ? "" : "s"} de pelo`,
     totalCatsRescued: value => `Total de gatos rescatados: ${value}`,
     totalCatsMissed: value => `Total de gatos perdidos: ${value}`,
-    rescueScore: value => `Tu puntuación de rescate es ${value}%`,
-    rivalScore: (name, value) => `${name} tiene ${value}%`,
+    rivalPoints: (name, value) => `${name} consiguió ${value}`,
+    totalScore: value => `Puntuación total: ${value}`,
+    resultBreakdownRescued: "Gatos rescatados",
+    resultBreakdownMoleLost: "Gatos perdidos por topo",
+    resultBreakdownTime: "Tiempo bonus / penalización",
+    resultBreakdownHairballs: "Bolas ganadas",
+    resultBreakdownScore: "Puntos ganados",
+    resultBreakdownPerfect: "Rescate perfecto",
     tradeHairballs: (hairballs, seconds) => `Cambia tus ${hairballs} bola${hairballs === 1 ? "" : "s"} de pelo por ${seconds} segundo${seconds === 1 ? "" : "s"}.`,
     muteOfferMessage: "Desbloquea el botón de silencio.",
     trapsCatchMole: "Las trampas pueden atrapar al topo.",
@@ -424,8 +510,15 @@ const COPY = {
     timeOfferSummary: value => `Tiempo: +${value} segundo${value === 1 ? "" : "s"}`,
     muteOfferTitle: "Silenciar juego",
     muteOfferSummary: "Silencio: 1",
+    scoreOfferTitle: "Marcador",
+    scoreOfferSummary: "Marcador: 1",
     exitOfferTitle: "Botón salir",
     exitOfferSummary: "Salir: 1",
+    purchaseTitle: "¡Felicidades!",
+    purchaseMessage: product => `Tienes un nuevo ${product}.`,
+    purchaseProductMute: "botón de silencio",
+    purchaseProductScoreboard: "marcador",
+    purchaseProductExit: "botón de salida",
     buy: "Comprar",
     trap_basic: "trampas normales",
     trap_steel: "trampas de acero",
@@ -455,6 +548,299 @@ function getStoredPreferredLanguage() {
   } catch {
     return "";
   }
+}
+
+function getDefaultStoredProgress() {
+  return {
+    muteUnlocked: false,
+    exitUnlocked: false,
+    scoreboardUnlocked: false,
+    cassetteCount: 0,
+    checkpoints: {}
+  };
+}
+
+function sanitizeStoredCheckpoints(rawCheckpoints) {
+  const sanitized = {};
+  const source = rawCheckpoints && typeof rawCheckpoints === "object" ? rawCheckpoints : {};
+
+  CHECKPOINT_ROUNDS.forEach((checkpointRound) => {
+    const rawCheckpoint = source[checkpointRound];
+    if (!rawCheckpoint || typeof rawCheckpoint !== "object") return;
+
+    const snapshotRound = Number(rawCheckpoint.round);
+    if (snapshotRound !== checkpointRound) return;
+
+    sanitized[checkpointRound] = {
+      round: checkpointRound,
+      targetCats: Math.max(1, Number(rawCheckpoint.targetCats) || GAME_CONFIG.startingCats),
+      roundTime: Math.max(1, Number(rawCheckpoint.roundTime) || GAME_CONFIG.startingTimeSeconds),
+      totalHairballs: Math.max(0, Number(rawCheckpoint.totalHairballs) || 0),
+      totalScore: Math.max(0, Number(rawCheckpoint.totalScore) || 0),
+      totalRescuedCats: Math.max(0, Number(rawCheckpoint.totalRescuedCats) || 0),
+      totalMissedCats: Math.max(0, Number(rawCheckpoint.totalMissedCats) || 0),
+      muteUnlocked: Boolean(rawCheckpoint.muteUnlocked),
+      exitUnlocked: Boolean(rawCheckpoint.exitUnlocked),
+      scoreboardUnlocked: Boolean(rawCheckpoint.scoreboardUnlocked),
+      cassetteCount: clamp(Number(rawCheckpoint.cassetteCount) || 0, 0, GAME_CONFIG.maxCassetteMusicTracks - 1),
+      currentTrapTierIndex: clamp(Number(rawCheckpoint.currentTrapTierIndex) || 0, 0, TRAP_TIERS.length - 1),
+      diamondTrapFailed: Boolean(rawCheckpoint.diamondTrapFailed),
+      moleAppears: Math.max(0, Number(rawCheckpoint.moleAppears) || GAME_CONFIG.moleStartsAt)
+    };
+  });
+
+  return sanitized;
+}
+
+function getStoredProgress() {
+  try {
+    const rawProgress = window.localStorage.getItem(PROGRESS_STORAGE_KEY);
+    if (!rawProgress) return getDefaultStoredProgress();
+
+    const parsedProgress = JSON.parse(rawProgress);
+    return {
+      muteUnlocked: Boolean(parsedProgress?.muteUnlocked),
+      exitUnlocked: Boolean(parsedProgress?.exitUnlocked),
+      scoreboardUnlocked: Boolean(parsedProgress?.scoreboardUnlocked),
+      cassetteCount: clamp(Number(parsedProgress?.cassetteCount) || 0, 0, GAME_CONFIG.maxCassetteMusicTracks - 1),
+      checkpoints: sanitizeStoredCheckpoints(parsedProgress?.checkpoints)
+    };
+  } catch {
+    return getDefaultStoredProgress();
+  }
+}
+
+function persistStoredProgress() {
+  try {
+    window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify({
+      muteUnlocked: muteControlUnlocked,
+      exitUnlocked: exitControlUnlocked,
+      scoreboardUnlocked,
+      cassetteCount,
+      checkpoints: getStoredProgress().checkpoints
+    }));
+  } catch {}
+}
+
+function applyStoredProgress() {
+  const storedProgress = getStoredProgress();
+  muteControlUnlocked = storedProgress.muteUnlocked;
+  exitControlUnlocked = storedProgress.exitUnlocked;
+  scoreboardUnlocked = storedProgress.scoreboardUnlocked;
+  cassetteCount = storedProgress.cassetteCount;
+}
+
+function clearStoredProgress() {
+  try {
+    window.localStorage.removeItem(PROGRESS_STORAGE_KEY);
+  } catch {}
+
+  muteControlUnlocked = false;
+  exitControlUnlocked = false;
+  scoreboardUnlocked = false;
+  cassetteCount = 0;
+}
+
+function buildCheckpointSnapshot() {
+  return {
+    round,
+    targetCats,
+    roundTime,
+    totalHairballs,
+    totalScore,
+    totalRescuedCats,
+    totalMissedCats,
+    muteUnlocked: muteControlUnlocked,
+    exitUnlocked: exitControlUnlocked,
+    scoreboardUnlocked,
+    cassetteCount,
+    currentTrapTierIndex,
+    diamondTrapFailed,
+    moleAppears
+  };
+}
+
+function saveCheckpointSnapshot(checkpointRound) {
+  if (!CHECKPOINT_ROUNDS.includes(checkpointRound)) return;
+
+  const storedProgress = getStoredProgress();
+  const nextProgress = {
+    ...storedProgress,
+    muteUnlocked: muteControlUnlocked,
+    exitUnlocked: exitControlUnlocked,
+    scoreboardUnlocked,
+    cassetteCount,
+    checkpoints: {
+      ...storedProgress.checkpoints,
+      [checkpointRound]: buildCheckpointSnapshot()
+    }
+  };
+
+  try {
+    window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(nextProgress));
+  } catch {}
+}
+
+function getCheckpointSnapshot(checkpointRound) {
+  return getStoredProgress().checkpoints[String(checkpointRound)] || null;
+}
+
+function renderCheckpointButtons() {
+  if (!checkpointList) return;
+
+  const checkpoints = getStoredProgress().checkpoints;
+  const buttons = CHECKPOINT_ROUNDS
+    .filter(checkpointRound => Boolean(checkpoints[String(checkpointRound)]))
+    .map(checkpointRound => `
+      <button class="checkpoint-btn" type="button" data-checkpoint-round="${checkpointRound}">
+        ${copy("startAtLevel", checkpointRound)}
+      </button>
+    `)
+    .join("");
+
+  checkpointList.innerHTML = buttons;
+  checkpointList.classList.toggle("hidden", buttons.length === 0);
+}
+
+function applyCheckpointSnapshot(snapshot) {
+  if (!snapshot) return false;
+
+  clearInterval(timerInterval);
+  clearMoleRepeatTimeout();
+  stopRoundSoundtrack();
+  reviewInProgress = false;
+  gameOver = false;
+  round = snapshot.round;
+  targetCats = snapshot.targetCats;
+  roundTime = snapshot.roundTime;
+  remainingTime = roundTime;
+  totalHairballs = snapshot.totalHairballs;
+  totalScore = snapshot.totalScore;
+  totalRescuedCats = snapshot.totalRescuedCats;
+  totalMissedCats = snapshot.totalMissedCats;
+  muteControlUnlocked = snapshot.muteUnlocked;
+  exitControlUnlocked = snapshot.exitUnlocked;
+  scoreboardUnlocked = snapshot.scoreboardUnlocked;
+  cassetteCount = snapshot.cassetteCount;
+  currentTrapTierIndex = snapshot.currentTrapTierIndex;
+  diamondTrapFailed = snapshot.diamondTrapFailed;
+  moleAppears = snapshot.moleAppears;
+  nextRoundTime = roundTime;
+  nextRoundCats = targetCats;
+  currentRoundResultSummary = null;
+  trapPurchasedForNextRound = null;
+  activeTrap = null;
+  currentSpecialOfferOptions = [];
+  currentSpecialOfferKind = "trap";
+  currentSpecialOfferSellerImage = "images/racoon.png";
+  currentSpecialOfferState = "hidden";
+  currentOfferSummaryData = null;
+  currentRescueScore = 0;
+  currentRoundScore = 0;
+  currentRivalName = "";
+  currentRivalScore = 0;
+  forcedNextMusicTrackPath = "";
+  rescuedThisRound = 0;
+  bonusClockEarnedThisRound = false;
+  clockTilesSelectedThisRound = 0;
+  cassetteTilesSelectedThisRound = 0;
+  earnedHairballThisRound = false;
+  yarnHairballsEarnedThisRound = 0;
+  yarnTilesSelectedThisRound = 0;
+  moleEventTriggeredThisRound = false;
+  moleSwapInProgress = false;
+  pendingReviewAfterMole = false;
+  moleCatsLostThisRound = 0;
+  currentRoundRescuableCats = targetCats;
+  currentRoundMissedCats = 0;
+  hideTrapOffer();
+  hideMoleRunner(true);
+  hideTrapRunner(true);
+  applyBoardLayout(round);
+
+  return true;
+}
+
+async function clearBrowserCaches() {
+  if (!("caches" in window)) return;
+
+  try {
+    const cacheKeys = await window.caches.keys();
+    await Promise.all(cacheKeys.map((cacheKey) => window.caches.delete(cacheKey)));
+  } catch {}
+}
+
+async function unregisterServiceWorkers() {
+  if (!("serviceWorker" in navigator)) return;
+
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  } catch {}
+}
+
+function deleteIndexedDbDatabaseByName(databaseName) {
+  return new Promise((resolve) => {
+    if (!databaseName || !window.indexedDB) {
+      resolve(false);
+      return;
+    }
+
+    try {
+      const request = window.indexedDB.deleteDatabase(databaseName);
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => resolve(false);
+      request.onblocked = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function clearIndexedDbDatabases() {
+  if (!window.indexedDB || typeof window.indexedDB.databases !== "function") return;
+
+  try {
+    const databases = await window.indexedDB.databases();
+    const databaseNames = databases
+      .map((database) => database?.name)
+      .filter((databaseName) => typeof databaseName === "string" && databaseName.length > 0);
+
+    await Promise.all(databaseNames.map(deleteIndexedDbDatabaseByName));
+  } catch {}
+}
+
+function reloadWithCacheBust() {
+  try {
+    const reloadUrl = new URL(window.location.href);
+    reloadUrl.searchParams.set("fritopay_reload", Date.now().toString());
+    window.location.replace(reloadUrl.toString());
+  } catch {
+    window.location.reload();
+  }
+}
+
+async function clearBrowserDataAndReload() {
+  stopAllAudioPlayers();
+  stopRoundSoundtrack();
+  stopHomeScreenAudio();
+  clearStoredProgress();
+
+  try {
+    window.localStorage.clear();
+  } catch {}
+
+  try {
+    window.sessionStorage.clear();
+  } catch {}
+
+  await Promise.all([
+    clearBrowserCaches(),
+    unregisterServiceWorkers(),
+    clearIndexedDbDatabases()
+  ]);
+
+  reloadWithCacheBust();
 }
 
 function detectPreferredLanguage() {
@@ -523,6 +909,181 @@ function getBoardSize(roundNumber = round) {
   };
 }
 
+function getRescuableCatCount() {
+  return targetCats;
+}
+
+function isPerfectRescueThisRound() {
+  return rescuedThisRound === getRescuableCatCount();
+}
+
+function formatSignedValue(value, unit = "") {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  const absoluteValue = Math.abs(value);
+  const unitSuffix = unit ? ` ${unit}` : "";
+  return `${sign}${absoluteValue}${unitSuffix}`;
+}
+
+function formatTimeSummaryMarkup() {
+  const delta = nextRoundTime - roundTime;
+  if (delta === 0) {
+    return `${copy("timeSummaryLabel")}: ${roundTime} ${copy("secondUnit", roundTime)}`;
+  }
+
+  const deltaSign = delta > 0 ? "+" : "-";
+  const deltaClass = delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral";
+  const absoluteDelta = Math.abs(delta);
+
+  return `${copy("timeSummaryLabel")}: ${roundTime} ` +
+    `<span class="time-summary-delta ${deltaClass}">${deltaSign}${absoluteDelta}</span> = ` +
+    `${nextRoundTime} ${copy("secondUnit", nextRoundTime)}`;
+}
+
+function clearResultTimeBarAnimation() {
+  resultTimeBarTimeoutIds.forEach(timeoutId => clearTimeout(timeoutId));
+  resultTimeBarTimeoutIds = [];
+  if (resultTimeBarFrameId !== null) {
+    cancelAnimationFrame(resultTimeBarFrameId);
+    resultTimeBarFrameId = null;
+  }
+  resultTimeBarAnimationToken += 1;
+}
+
+function setResultTimeBarValue(value) {
+  if (!resultTimeBarValue) return;
+  resultTimeBarValue.textContent = `${Math.max(0, Math.round(value))}s`;
+}
+
+function animateResultTimeBarValue(fromValue, toValue, durationMs, delayMs = 0, token = resultTimeBarAnimationToken) {
+  const startAnimation = () => {
+    if (token !== resultTimeBarAnimationToken) return;
+    if (durationMs <= 0) {
+      setResultTimeBarValue(toValue);
+      return;
+    }
+
+    const startedAt = performance.now();
+
+    const step = now => {
+      if (token !== resultTimeBarAnimationToken) return;
+      const progress = Math.min(1, (now - startedAt) / durationMs);
+      setResultTimeBarValue(fromValue + (toValue - fromValue) * progress);
+
+      if (progress < 1) {
+        resultTimeBarFrameId = requestAnimationFrame(step);
+        return;
+      }
+
+      resultTimeBarFrameId = null;
+      setResultTimeBarValue(toValue);
+    };
+
+    resultTimeBarFrameId = requestAnimationFrame(step);
+  };
+
+  if (delayMs > 0) {
+    const timeoutId = setTimeout(startAnimation, delayMs);
+    resultTimeBarTimeoutIds.push(timeoutId);
+    return;
+  }
+
+  startAnimation();
+}
+
+function getResultTimeBarMetrics() {
+  const maxTime = Math.max(1, roundTime, nextRoundTime);
+  return {
+    delta: nextRoundTime - roundTime,
+    baseWidthPct: (roundTime / maxTime) * 100,
+    nextWidthPct: (nextRoundTime / maxTime) * 100
+  };
+}
+
+function applyResultTimeBarState() {
+  if (!resultTimeBar || !resultTimeBarFill || !resultTimeBarLoss || !resultTimeBarGain) return;
+
+  clearResultTimeBarAnimation();
+
+  const { delta, baseWidthPct, nextWidthPct } = getResultTimeBarMetrics();
+  resultTimeBar.classList.toggle("hidden", roundTime <= 0 && nextRoundTime <= 0);
+
+  resultTimeBarFill.style.transition = "none";
+  resultTimeBarLoss.style.transition = "none";
+  resultTimeBarGain.style.transition = "none";
+
+  resultTimeBarLoss.style.left = "0%";
+  resultTimeBarLoss.style.width = "0%";
+  resultTimeBarGain.style.left = "0%";
+  resultTimeBarGain.style.width = "0%";
+
+  if (delta > 0) {
+    resultTimeBarFill.style.width = `${baseWidthPct}%`;
+    resultTimeBarGain.style.left = `${baseWidthPct}%`;
+    resultTimeBarGain.style.width = `${Math.max(0, nextWidthPct - baseWidthPct)}%`;
+  } else if (delta < 0) {
+    resultTimeBarFill.style.width = `${nextWidthPct}%`;
+    resultTimeBarLoss.style.left = `${nextWidthPct}%`;
+    resultTimeBarLoss.style.width = `${Math.max(0, baseWidthPct - nextWidthPct)}%`;
+  } else {
+    resultTimeBarFill.style.width = `${baseWidthPct}%`;
+  }
+
+  setResultTimeBarValue(nextRoundTime);
+}
+
+function playResultTimeBarAnimation() {
+  if (!resultTimeBar || !resultTimeBarFill || !resultTimeBarLoss || !resultTimeBarGain) return;
+  if (resourceSummary.classList.contains("hidden")) return;
+
+  clearResultTimeBarAnimation();
+
+  const { delta, baseWidthPct, nextWidthPct } = getResultTimeBarMetrics();
+  const baseDurationMs = Math.max(1, Math.round(Math.max(roundTime, 0) * 60));
+  const deltaDurationMs = Math.max(1, Math.round(Math.abs(delta) * 200));
+  const pauseMs = 200;
+  const animationToken = resultTimeBarAnimationToken;
+
+  resultTimeBar.classList.remove("hidden");
+  resultTimeBarFill.style.transition = "none";
+  resultTimeBarLoss.style.transition = "none";
+  resultTimeBarGain.style.transition = "none";
+  resultTimeBarFill.style.width = "0%";
+  resultTimeBarLoss.style.left = "0%";
+  resultTimeBarLoss.style.width = "0%";
+  resultTimeBarGain.style.left = `${baseWidthPct}%`;
+  resultTimeBarGain.style.width = "0%";
+  setResultTimeBarValue(0);
+  void resultTimeBar.offsetWidth;
+
+  resultTimeBarFill.style.transition = `width ${baseDurationMs}ms linear`;
+  resultTimeBarFill.style.width = `${baseWidthPct}%`;
+  animateResultTimeBarValue(0, roundTime, baseDurationMs, 0, animationToken);
+
+  if (delta === 0) {
+    return;
+  }
+
+  const phaseTimeoutId = setTimeout(() => {
+    if (delta < 0) {
+      resultTimeBarLoss.style.left = `${nextWidthPct}%`;
+      resultTimeBarLoss.style.width = `${Math.max(0, baseWidthPct - nextWidthPct)}%`;
+      resultTimeBarFill.style.transition = `width ${deltaDurationMs}ms linear`;
+      resultTimeBarFill.style.width = `${nextWidthPct}%`;
+      animateResultTimeBarValue(roundTime, nextRoundTime, deltaDurationMs, 0, animationToken);
+      return;
+    }
+
+    resultTimeBarGain.style.left = `${baseWidthPct}%`;
+    resultTimeBarGain.style.width = "0%";
+    void resultTimeBarGain.offsetWidth;
+    resultTimeBarGain.style.transition = `width ${deltaDurationMs}ms linear`;
+    resultTimeBarGain.style.width = `${Math.max(0, nextWidthPct - baseWidthPct)}%`;
+    animateResultTimeBarValue(roundTime, nextRoundTime, deltaDurationMs, 0, animationToken);
+  }, baseDurationMs + pauseMs);
+
+  resultTimeBarTimeoutIds.push(phaseTimeoutId);
+}
+
 function clearMoleRepeatTimeout() {
   if (moleRepeatTimeoutId !== null) {
     clearTimeout(moleRepeatTimeoutId);
@@ -571,10 +1132,8 @@ function stopAudioPlayer(player) {
   player.currentTime = 0;
 }
 
-function playTrack(name, { loop = false, volume = 1 } = {}) {
+function playAudioSource(src, { loop = false, volume = 1 } = {}) {
   if (isMuted) return null;
-
-  const src = AUDIO_TRACKS[name];
   if (!src) return null;
 
   const player = new Audio(src);
@@ -587,6 +1146,25 @@ function playTrack(name, { loop = false, volume = 1 } = {}) {
   });
   player.play().catch(() => {});
   return player;
+}
+
+function playTrack(name, { loop = false, volume = 1 } = {}) {
+  return playAudioSource(AUDIO_TRACKS[name], { loop, volume });
+}
+
+function getUnlockedMusicTrackPaths() {
+  const unlockedTrackTotal = clamp(cassetteCount + 1, 1, GAME_CONFIG.maxCassetteMusicTracks);
+  return CASSETTE_MUSIC_TRACKS.slice(0, unlockedTrackTotal);
+}
+
+function getNextRoundMusicTrackPath() {
+  const unlockedTrackPaths = getUnlockedMusicTrackPaths();
+  const forcedTrackPath = unlockedTrackPaths.includes(forcedNextMusicTrackPath)
+    ? forcedNextMusicTrackPath
+    : "";
+
+  forcedNextMusicTrackPath = "";
+  return forcedTrackPath || randomFrom(unlockedTrackPaths);
 }
 
 function stopAllAudioPlayers() {
@@ -610,19 +1188,28 @@ function stopHomeScreenAudio() {
 }
 
 function playHomeScreenAudio() {
+  if (homeScreenPlayer && !homeScreenPlayer.ended) {
+    homeScreenPlayer.loop = true;
+    homeScreenPlayer.volume = 0.82;
+    homeScreenPlayer.play().catch(() => {});
+    return homeScreenPlayer;
+  }
+
   stopHomeScreenAudio();
   homeScreenPlayer = playTrack("startScreen", {
     loop: true,
     volume: 0.82
   });
+  return homeScreenPlayer;
 }
 
 function playRoundIntroAndMusic() {
   stopHomeScreenAudio();
   stopRoundSoundtrack();
-  backgroundMusicPlayer = playTrack("music", {
+  const trackPath = getNextRoundMusicTrackPath();
+  backgroundMusicPlayer = playAudioSource(trackPath, {
     loop: true,
-    volume: 0.72
+    volume: 0.75
   });
 }
 
@@ -647,13 +1234,43 @@ function beep(freq, duration, type = "sine", volume = 0.04, delay = 0) {
 }
 
 function updateMuteButton() {
-  muteToggle.classList.toggle("hidden", !muteControlUnlocked);
+  updateUnlockableUiItem(muteToggle, muteControlUnlocked, "mute");
   muteToggle.textContent = isMuted ? "🔇" : "🔈";
 }
 
 function updateBottomExitButton() {
-  bottomExitBtn.classList.toggle("hidden", !exitControlUnlocked);
+  updateUnlockableUiItem(bottomExitBtn, exitControlUnlocked, "exit");
   bottomExitBtn.textContent = copy("exit");
+}
+
+function triggerUiUnlockPop(element, key) {
+  if (!element || !pendingUiUnlockAnimations.has(key)) return;
+  if (isPreGameScreenVisible() || resultPanel.classList.contains("show")) return;
+
+  pendingUiUnlockAnimations.delete(key);
+  element.classList.remove("ui-unlock-pop");
+  void element.offsetWidth;
+  element.classList.add("ui-unlock-pop");
+  element.addEventListener("animationend", () => {
+    element.classList.remove("ui-unlock-pop");
+  }, { once: true });
+}
+
+function updateUnlockableUiItem(element, shouldShow, key) {
+  if (!element) return;
+
+  const wasHidden = element.classList.contains("hidden");
+  element.classList.toggle("hidden", !shouldShow);
+
+  if (shouldShow && (wasHidden || pendingUiUnlockAnimations.has(key))) {
+    triggerUiUnlockPop(element, key);
+  }
+}
+
+function flushPendingUiUnlockAnimations() {
+  updateScoreDisplay();
+  updateBottomExitButton();
+  updateMuteButton();
 }
 
 function applyMuteState() {
@@ -747,6 +1364,25 @@ function playRoundStartSound() {
   playRoundIntroAndMusic();
 }
 
+function showTrapOutcomeSplash(message) {
+  if (!trapOutcomeSplash || !message) return;
+
+  if (trapOutcomeSplashTimeoutId !== null) {
+    clearTimeout(trapOutcomeSplashTimeoutId);
+    trapOutcomeSplashTimeoutId = null;
+  }
+
+  trapOutcomeSplash.textContent = message;
+  trapOutcomeSplash.classList.remove("show");
+  void trapOutcomeSplash.offsetWidth;
+  trapOutcomeSplash.classList.add("show");
+
+  trapOutcomeSplashTimeoutId = setTimeout(() => {
+    trapOutcomeSplash.classList.remove("show");
+    trapOutcomeSplashTimeoutId = null;
+  }, 500);
+}
+
 function playGameOverSound() {
   playTrack("gameOver", { volume: 0.96 });
 }
@@ -772,6 +1408,10 @@ function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function randomIntBetween(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
 function buildTileData(type = "other") {
   const skin = round >= 10 ? randomFrom(LATE_TILE_SKINS) : null;
   return {
@@ -782,10 +1422,24 @@ function buildTileData(type = "other") {
           ? "⏰"
           : type === "yarn"
             ? "🧶"
+            : type === "cassette"
+              ? ""
+            : type === "empty"
+              ? ""
             : randomFrom(OTHER_EMOJIS),
+    imageSrc:
+      type === "clock"
+        ? "images/time.png"
+        : type === "yarn"
+          ? "images/hairball.png"
+          : type === "cassette"
+            ? "svg/cassette.svg"
+            : "",
     isCat: type === "cat",
     isClock: type === "clock",
     isYarn: type === "yarn",
+    isCassette: type === "cassette",
+    isEmpty: type === "empty",
     skin,
     selected: false,
     state: "idle"
@@ -861,6 +1515,7 @@ function buildRoundData() {
   const catIndexes = new Set(buildSpacedCatIndexes(currentTileCount, catCount, currentCols));
   let clockIndex = -1;
   let yarnIndex = -1;
+  let cassetteIndex = -1;
   const lateBonusRound = round >= 11;
   const openIndexes = Array.from({ length: currentTileCount }, (_, index) => index)
     .filter(index => !catIndexes.has(index));
@@ -882,10 +1537,20 @@ function buildRoundData() {
     yarnIndex = randomFrom(remainingIndexes);
   }
 
+  const cassetteIndexes = remainingIndexes.filter(index => index !== yarnIndex);
+  if (
+    round >= GAME_CONFIG.bonusCassetteStartsAtRound &&
+    Math.random() < GAME_CONFIG.bonusCassetteChance &&
+    cassetteIndexes.length > 0
+  ) {
+    cassetteIndex = randomFrom(cassetteIndexes);
+  }
+
   return Array.from({ length: currentTileCount }, (_, index) => {
     if (catIndexes.has(index)) return buildTileData("cat");
     if (index === clockIndex) return buildTileData("clock");
     if (index === yarnIndex) return buildTileData("yarn");
+    if (index === cassetteIndex) return buildTileData("cassette");
     return buildTileData("other");
   });
 }
@@ -895,8 +1560,14 @@ function createTileButton(index) {
   const tileData = tiles[index];
 
   tile.className = "tile";
-  if (tileData.isClock || tileData.isYarn) {
+  if (tileData.isEmpty) {
+    tile.classList.add("tile-empty", "mole-gap");
+  }
+  if (tileData.isClock || tileData.isYarn || tileData.isCassette) {
     tile.classList.add("bonus-tile");
+  }
+  if (tileData.isCassette) {
+    tile.classList.add("cassette-tile");
   }
   if (tileData.skin) {
     tile.style.setProperty("--tile-fill", tileData.skin.fill);
@@ -904,7 +1575,15 @@ function createTileButton(index) {
   }
   tile.type = "button";
   tile.dataset.index = index;
-  tile.innerHTML = `<span class="emoji">${tileData.emoji}</span>`;
+  tile.innerHTML = tileData.imageSrc
+    ? `<img class="${
+      tileData.isCassette
+        ? "tile-asset tile-asset-cassette"
+        : "tile-asset tile-asset-bonus"
+    }" src="${tileData.imageSrc}" alt="" />`
+    : tileData.isEmpty
+      ? ""
+    : `<span class="emoji">${tileData.emoji}</span>`;
 
   tile.addEventListener("click", () => {
     if (
@@ -921,7 +1600,7 @@ function createTileButton(index) {
     tile.classList.toggle("selected", tileData.selected);
 
     if (tileData.selected) {
-      if (tileData.isClock || tileData.isYarn) {
+      if (tileData.isClock || tileData.isYarn || tileData.isCassette) {
         playTrack("shine", { volume: 0.95 });
       } else {
         playSelectSound();
@@ -937,34 +1616,27 @@ function createTileButton(index) {
 }
 
 function updateBonusTileHints() {
-  const hintStartSeconds = round >= 15
-    ? Math.max(
-        GAME_CONFIG.bonusHintLateMinSeconds,
-        GAME_CONFIG.bonusHintLateStartSeconds - (round - 15) * GAME_CONFIG.bonusHintLateStepSeconds
-      )
-    : null;
-  const lateRoundPenalty = Math.max(0, round - 10) * GAME_CONFIG.bonusHintLateRoundStep;
-  const hintStartRatio = round <= 10
-    ? GAME_CONFIG.bonusHintStartRatio
-    : Math.max(
-        GAME_CONFIG.bonusHintMinRatio,
-        GAME_CONFIG.bonusHintStartRatio - lateRoundPenalty
-      );
   const shouldHighlight = (
     remainingTime > 0 &&
     !reviewInProgress &&
     !isPreGameScreenVisible() &&
     (
-      round >= 15
-        ? remainingTime <= hintStartSeconds
-        : remainingTime <= roundTime * hintStartRatio
+      round <= GAME_CONFIG.bonusHintAlwaysThroughRound ||
+      (
+        round <= GAME_CONFIG.bonusHintHalfTimeThroughRound &&
+        remainingTime <= roundTime * 0.5
+      ) ||
+      (
+        round <= GAME_CONFIG.bonusHintQuarterTimeThroughRound &&
+        remainingTime <= roundTime * 0.25
+      )
     )
   );
 
   boardEl.querySelectorAll(".tile.bonus-tile").forEach(tileEl => {
     const tileIndex = Number(tileEl.dataset.index);
     const tileData = tiles[tileIndex];
-    const isAvailableBonus = tileData && (tileData.isClock || tileData.isYarn) && tileData.state === "idle";
+    const isAvailableBonus = tileData && (tileData.isClock || tileData.isYarn || tileData.isCassette) && tileData.state === "idle";
     tileEl.classList.toggle("bonus-urgent", Boolean(shouldHighlight && isAvailableBonus));
   });
 }
@@ -975,8 +1647,14 @@ function createBoard() {
   tiles = buildRoundData();
   rescuedThisRound = 0;
   bonusClockEarnedThisRound = false;
+  clockTilesSelectedThisRound = 0;
+  cassetteTilesSelectedThisRound = 0;
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
+  moleCatsLostThisRound = 0;
+  currentRoundRescuableCats = targetCats;
+  currentRoundMissedCats = 0;
+  yarnTilesSelectedThisRound = 0;
   pendingReviewAfterMole = false;
   if (pickedLabel) {
     pickedLabel.textContent = copy("selectedTiles", 0);
@@ -1003,17 +1681,22 @@ function updateTopUI() {
 
   const pct = Math.max(0, Math.min(1, remainingTime / Math.max(roundTime, 0.001)));
   progressFill.style.width = `${pct * 100}%`;
+  progressFill.classList.toggle("low-time", pct <= 0.25);
   updateBonusTileHints();
 }
 
 function updateSplashText() {
   splashText.innerHTML = copy("splashIntro", GAME_CONFIG.startingTimeSeconds);
+  if (introTimeNote) {
+    introTimeNote.textContent = copy("splashTimeNotice", GAME_CONFIG.startingTimeSeconds);
+  }
 }
 
 function resetGameState() {
   clearInterval(timerInterval);
   clearMoleRepeatTimeout();
   stopRoundSoundtrack();
+  applyStoredProgress();
   round = GAME_CONFIG.startingRound;
   targetCats = GAME_CONFIG.startingCats;
   roundTime = GAME_CONFIG.startingTimeSeconds;
@@ -1025,10 +1708,10 @@ function resetGameState() {
   totalRescuedCats = 0;
   totalMissedCats = 0;
   totalHairballs = 0;
+  totalScore = 0;
   nextRoundTime = roundTime;
   nextRoundCats = targetCats;
-  currentResultBonusLine = "";
-  currentResultExtraLines = [];
+  currentRoundResultSummary = null;
   gameOver = false;
   moleAppears = GAME_CONFIG.moleStartsAt;
   moleEventTriggeredThisRound = false;
@@ -1037,8 +1720,11 @@ function resetGameState() {
   trapPurchasedForNextRound = null;
   activeTrap = null;
   bonusClockEarnedThisRound = false;
+  clockTilesSelectedThisRound = 0;
+  cassetteTilesSelectedThisRound = 0;
   earnedHairballThisRound = false;
   yarnHairballsEarnedThisRound = 0;
+  yarnTilesSelectedThisRound = 0;
   currentTrapTierIndex = 0;
   diamondTrapFailed = false;
   currentSpecialOfferOptions = [];
@@ -1047,10 +1733,15 @@ function resetGameState() {
   currentSpecialOfferState = "hidden";
   currentOfferSummaryData = null;
   currentRescueScore = 0;
+  currentRoundScore = 0;
   currentRivalName = "";
   currentRivalScore = 0;
+  forcedNextMusicTrackPath = "";
   hideMoleRunner(true);
   hideTrapRunner(true);
+  moleCatsLostThisRound = 0;
+  currentRoundRescuableCats = targetCats;
+  currentRoundMissedCats = 0;
   hideTrapOffer();
   applyBoardLayout(round);
 }
@@ -1066,37 +1757,68 @@ function getScaledReviewStepDelay() {
 
 function updateSummaryTexts() {
   hairballSummaryText.textContent = copy("hairballs", totalHairballs);
-  timeSummaryText.textContent = copy("timeSummary", nextRoundTime);
+  timeSummaryText.innerHTML = formatTimeSummaryMarkup();
+  applyResultTimeBarState();
+}
+
+function updateResultTitleAppearance({ perfect = false } = {}) {
+  resultTitle.classList.toggle("perfect-fireworks", perfect);
+}
+
+function updateScoreDisplay() {
+  updateUnlockableUiItem(scoreLabel, scoreboardUnlocked, "scoreboard");
+  scoreLabel.textContent = copy("scoreLabel", totalScore);
 }
 
 function getRoundResultTitle() {
-  const missedCats = Math.max(0, targetCats - rescuedThisRound);
+  const missedCats = Math.max(0, getRescuableCatCount() - rescuedThisRound);
 
   if (gameOver) return copy("gameOver");
-  if (rescuedThisRound === targetCats) return copy("perfectRescue");
+  if (isPerfectRescueThisRound()) return copy("perfectRescue");
   return missedCats >= 3 ? copy("fritoLaughs") : copy("notBad");
 }
 
 function renderGameOverText() {
+  resultText.classList.add("game-over-text");
   resultText.innerHTML = `
-    <strong>${copy("totalCatsRescued", totalRescuedCats)}</strong><br>
-    <strong>${copy("totalCatsMissed", totalMissedCats)}</strong><br>
-    <span class="bonus-line">${copy("rescueScore", currentRescueScore)}</span><br>
-    <strong>${copy("rivalScore", currentRivalName, currentRivalScore)}</strong>
+    <div class="game-over-line" style="--line-delay: 0ms;"><strong>${copy("totalCatsRescued", totalRescuedCats)}</strong></div>
+    <div class="game-over-line" style="--line-delay: 90ms;"><strong>${copy("totalCatsMissed", totalMissedCats)}</strong></div>
+    <div class="game-over-line game-over-line-score" style="--line-delay: 180ms;"><strong>${copy("totalScore", totalScore)}</strong></div>
+    <div class="game-over-line" style="--line-delay: 1270ms;"><strong>${copy("rivalPoints", currentRivalName, currentRivalScore)}</strong></div>
   `;
+  resultBreakdown.innerHTML = "";
+  resultBreakdown.classList.add("hidden");
 }
 
 function updateLanguageToggle() {
-  languageToggle.querySelectorAll(".language-toggle-btn").forEach(button => {
-    button.classList.toggle("active", button.dataset.lang === currentLanguage);
+  [languageToggle, landingLanguageToggle].forEach(toggle => {
+    if (!toggle) return;
+    toggle.querySelectorAll(".language-toggle-btn").forEach(button => {
+      button.classList.toggle("active", button.dataset.lang === currentLanguage);
+    });
   });
+}
+
+function handleLanguageToggleClick(event) {
+  const button = event.target.closest(".language-toggle-btn");
+  if (!button || button.dataset.lang === currentLanguage) {
+    return;
+  }
+
+  if (!setCurrentLanguage(button.dataset.lang, { persist: true })) {
+    return;
+  }
+
+  updateLanguageUI();
 }
 
 function updateLanguageUI() {
   document.documentElement.lang = currentLanguage;
   timeoutFlash.textContent = copy("timeout");
   playBtn.textContent = copy("startPlaying");
+  clearCacheBtn.textContent = copy("clearCache");
   startBtn.textContent = copy("startRescuingCats");
+  renderCheckpointButtons();
   trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
   trapOfferDismissBtn.textContent = copy("dismiss");
   nextBtn.textContent = copy("nextRound");
@@ -1106,16 +1828,20 @@ function updateLanguageUI() {
   updateSplashText();
   updatePickedCount();
   updateSummaryTexts();
+  updateScoreDisplay();
 
   if (resultPanel.classList.contains("show")) {
     resultTitle.textContent = getRoundResultTitle();
+    updateResultTitleAppearance({ perfect: !gameOver && isPerfectRescueThisRound() });
     if (gameOver) {
       renderGameOverText();
     } else {
       renderRoundResultText();
+      renderResultBreakdown();
     }
   } else {
     resultTitle.textContent = copy("roundOver");
+    updateResultTitleAppearance({ perfect: false });
   }
 
   if (!trapOffer.classList.contains("hidden")) {
@@ -1333,7 +2059,11 @@ function getUnrescuedCatIndexes() {
 function fanfare(tileEl) {
   const fx = document.createElement("div");
   fx.className = "fanfare";
-  fx.textContent = "🎉";
+  for (let i = 0; i < 9; i++) {
+    const piece = document.createElement("span");
+    piece.className = "fanfare-piece";
+    fx.appendChild(piece);
+  }
   tileEl.appendChild(fx);
   setTimeout(() => fx.remove(), GAME_CONFIG.effectDurationMs);
 }
@@ -1384,6 +2114,36 @@ function setMoleRunnerTarget({ x, y, size }) {
   moleRunner.style.setProperty("--mole-y", `${y}px`);
 }
 
+function updateDirtStripLayout() {
+  const wrapRect = boardWrapEl.getBoundingClientRect();
+  const boardRect = boardEl.getBoundingClientRect();
+  const stripWidth = boardRect.width + 20;
+  const stripHeight = clamp(boardRect.height * 0.085, 24, 40);
+  const stripX = boardRect.left - wrapRect.left - 10;
+  const stripY = boardRect.bottom - wrapRect.top - stripHeight;
+
+  dirtStrip.style.setProperty("--dirt-x", `${stripX}px`);
+  dirtStrip.style.setProperty("--dirt-y", `${stripY}px`);
+  dirtStrip.style.setProperty("--dirt-width", `${stripWidth}px`);
+  dirtStrip.style.setProperty("--dirt-height", `${stripHeight}px`);
+}
+
+function showDirtStrip() {
+  updateDirtStripLayout();
+  dirtStrip.style.opacity = "";
+  dirtStrip.style.transform = "";
+  dirtStrip.classList.add("show");
+}
+
+function hideDirtStrip(immediate = false) {
+  dirtStrip.classList.remove("show");
+
+  if (immediate) {
+    dirtStrip.style.opacity = "0";
+    dirtStrip.style.transform = "translate(var(--dirt-x, 0), var(--dirt-y, 0px))";
+  }
+}
+
 function setTrapRunnerTarget({ x, y, size }) {
   trapRunner.style.setProperty("--trap-size", `${size}px`);
   trapRunner.style.setProperty("--trap-x", `${x}px`);
@@ -1400,6 +2160,7 @@ function setMoleRunnerPatrol({ startX, endX, y, size }) {
 
 function hideMoleRunner(immediate = false) {
   moleRunner.classList.remove("show", "idle", "entering", "shaking", "exiting");
+  hideDirtStrip(immediate);
 
   if (immediate) {
     moleRunner.style.opacity = "0";
@@ -1513,6 +2274,7 @@ function showIdleMoleRunner() {
   }
 
   const metrics = getIdleMoleRunnerMetrics();
+  showDirtStrip();
   setMoleRunnerPatrol(metrics);
   moleRunner.classList.remove("entering", "shaking", "exiting");
   moleRunner.classList.add("show", "idle");
@@ -1526,6 +2288,7 @@ async function alignMoleRunnerToColumn(columnIndex) {
 
   const currentMetrics = getCurrentMoleRunnerMetrics() || targetMetrics;
   hideMoleRunner(false);
+  showDirtStrip();
   setMoleRunnerTarget(targetMetrics);
 
   moleRunner.classList.add("show");
@@ -1613,6 +2376,7 @@ async function triggerTrapCatch(moleMetrics) {
 
   if (trapWorked) {
     playTrack("trap", { volume: 0.95 });
+    showTrapOutcomeSplash(copy("moleTrapped"));
     moleRunner.classList.add("shaking");
     trapRunner.classList.add("show", "trapped");
 
@@ -1637,6 +2401,7 @@ async function triggerTrapCatch(moleMetrics) {
   }
 
   playTrack("error", { volume: 0.95 });
+  showTrapOutcomeSplash(copy("trapFailed"));
   trapRunner.classList.add("show", "failing");
   await wait(GAME_CONFIG.trapCatchShakeMs);
   trapRunner.classList.remove("failing");
@@ -1651,11 +2416,18 @@ function getColumnIndexes(columnIndex) {
   return Array.from({ length: currentRows }, (_, rowIndex) => rowIndex * currentCols + columnIndex);
 }
 
-function buildReplacementColumnData(catCount) {
-  const catIndexes = new Set(buildSpacedCatIndexes(currentRows, catCount, 1));
-  return Array.from({ length: currentRows }, (_, index) => (
-    catIndexes.has(index) ? buildTileData("cat") : buildTileData("other")
-  ));
+function findCassetteRelocationIndex(excludedIndexes = []) {
+  const excludedSet = new Set(excludedIndexes);
+  const candidateIndexes = Array.from({ length: tiles.length }, (_, index) => index).filter(index => {
+    if (excludedSet.has(index)) return false;
+
+    const tileData = tiles[index];
+    if (!tileData || tileData.state !== "idle" || tileData.selected) return false;
+
+    return !tileData.isCat && !tileData.isClock && !tileData.isYarn && !tileData.isCassette && !tileData.isEmpty;
+  });
+
+  return candidateIndexes.length > 0 ? randomFrom(candidateIndexes) : -1;
 }
 
 async function triggerMoleColumnSwap() {
@@ -1683,7 +2455,12 @@ async function triggerMoleColumnSwap() {
   const columnIndex = Math.floor(Math.random() * currentCols);
   const columnIndexes = getColumnIndexes(columnIndex);
   const columnElements = columnIndexes.map(index => boardEl.children[index]);
+  const cassetteToRelocate = columnIndexes
+    .map(index => ({ index, tileData: tiles[index] }))
+    .find(({ tileData }) => tileData && tileData.isCassette && tileData.state === "idle");
   const outgoingCatCount = columnIndexes.filter(index => tiles[index].isCat).length;
+  moleCatsLostThisRound += outgoingCatCount;
+  currentRoundRescuableCats = getRescuableCatCount();
 
   columnElements.forEach(tileEl => {
     tileEl.classList.remove("selected");
@@ -1716,22 +2493,22 @@ async function triggerMoleColumnSwap() {
 
   await wait(GAME_CONFIG.moleGapMs);
 
-  const replacementData = buildReplacementColumnData(outgoingCatCount);
-
-  columnIndexes.forEach((index, replacementIndex) => {
-    tiles[index] = replacementData[replacementIndex];
-    const replacementTile = createTileButton(index);
-    replacementTile.classList.add("mole-fall");
-    boardEl.replaceChild(replacementTile, boardEl.children[index]);
+  columnIndexes.forEach(index => {
+    tiles[index] = buildTileData("empty");
+    const emptyTile = createTileButton(index);
+    boardEl.replaceChild(emptyTile, boardEl.children[index]);
   });
+
+  if (cassetteToRelocate) {
+    const relocationIndex = findCassetteRelocationIndex(columnIndexes);
+    if (relocationIndex !== -1) {
+      tiles[relocationIndex] = cassetteToRelocate.tileData;
+      const relocatedCassetteTile = createTileButton(relocationIndex);
+      boardEl.replaceChild(relocatedCassetteTile, boardEl.children[relocationIndex]);
+    }
+  }
 
   const moleExitPromise = animateMoleRunnerOut(moleMetrics);
-  await wait(GAME_CONFIG.moleFallMs);
-
-  columnIndexes.forEach(index => {
-    boardEl.children[index].classList.remove("mole-fall");
-  });
-
   await moleExitPromise;
 
   moleSwapInProgress = false;
@@ -1752,8 +2529,11 @@ async function startReview() {
   const reviewStepDelay = getScaledReviewStepDelay();
   rescuedThisRound = 0;
   bonusClockEarnedThisRound = false;
+  clockTilesSelectedThisRound = 0;
+  cassetteTilesSelectedThisRound = 0;
   earnedHairballThisRound = false;
   yarnHairballsEarnedThisRound = 0;
+  yarnTilesSelectedThisRound = 0;
 
   for (const idx of selectedIndexes) {
     const t = tiles[idx];
@@ -1768,12 +2548,23 @@ async function startReview() {
       playGoodSound();
     } else if (t.isClock && t.state === "idle") {
       bonusClockEarnedThisRound = true;
+      clockTilesSelectedThisRound++;
       t.state = "bonus";
       el.classList.remove("selected");
       el.classList.add("good");
       fanfare(el);
     } else if (t.isYarn && t.state === "idle") {
+      yarnTilesSelectedThisRound++;
       yarnHairballsEarnedThisRound += GAME_CONFIG.bonusYarnHairballs;
+      t.state = "bonus";
+      el.classList.remove("selected");
+      el.classList.add("good");
+      fanfare(el);
+    } else if (t.isCassette && t.state === "idle") {
+      cassetteTilesSelectedThisRound++;
+      cassetteCount = clamp(cassetteCount + 1, 0, GAME_CONFIG.maxCassetteMusicTracks - 1);
+      forcedNextMusicTrackPath = CASSETTE_MUSIC_TRACKS[Math.min(cassetteCount, GAME_CONFIG.maxCassetteMusicTracks - 1)];
+      persistStoredProgress();
       t.state = "bonus";
       el.classList.remove("selected");
       el.classList.add("good");
@@ -1881,12 +2672,58 @@ function getMuteOfferOption() {
   };
 }
 
+function getScoreboardOfferOption() {
+  return {
+    kind: "scoreboard",
+    offerId: "scoreboard",
+    cost: GAME_CONFIG.scoreboardOfferCostHairballs
+  };
+}
+
 function getExitOfferOption() {
   return {
     kind: "exit",
     offerId: "exit",
     cost: GAME_CONFIG.exitOfferCostHairballs
   };
+}
+
+function getOfferProductLabel(kind, tierId = "") {
+  if (kind === "time") return copy("timeOfferTitle", getTimeOfferSeconds());
+  if (kind === "mute") return copy("muteOfferTitle");
+  if (kind === "scoreboard") return copy("scoreOfferTitle");
+  if (kind === "exit") return copy("exitOfferTitle");
+  return getTrapTierLabel(tierId);
+}
+
+function getPurchasedProductLabel(kind, tierId = "") {
+  if (kind === "time") return copy("timeOfferTitle", getTimeOfferSeconds());
+  if (kind === "mute") return copy("purchaseProductMute");
+  if (kind === "scoreboard") return copy("purchaseProductScoreboard");
+  if (kind === "exit") return copy("purchaseProductExit");
+  return getTrapTierLabel(tierId);
+}
+
+function getOfferVisualMarkup(kind, { tierId = "", summary = false } = {}) {
+  if (kind === "time") {
+    const imageClass = summary ? "trap-offer-summary-image" : "trap-offer-row-image";
+    return `<img class="${imageClass}" src="images/time.png" alt="" />`;
+  }
+
+  if (kind === "mute") {
+    return `<div class="offer-visual offer-visual-mute${summary ? " offer-visual-summary" : ""}" aria-hidden="true">🔇</div>`;
+  }
+
+  if (kind === "scoreboard") {
+    return `<div class="offer-visual offer-visual-score${summary ? " offer-visual-summary" : ""}" aria-hidden="true">🎖️</div>`;
+  }
+
+  if (kind === "exit") {
+    return `<div class="offer-visual offer-visual-exit${summary ? " offer-visual-summary" : ""}" aria-hidden="true">${copy("exit")}</div>`;
+  }
+
+  const imageClass = summary ? "trap-offer-summary-image" : "trap-offer-row-image";
+  return `<img class="${imageClass}" src="${getTrapTierById(tierId).image}" alt="" />`;
 }
 
 function canShowTimeOffer() {
@@ -1907,12 +2744,15 @@ function getSpecialOfferOptions(roundNumber = round) {
   }
 
   if (roundNumber === GAME_CONFIG.muteOfferRound) {
-    const earlyCatOffers = [];
-    if (!muteControlUnlocked) earlyCatOffers.push(getMuteOfferOption());
-    if (!exitControlUnlocked) earlyCatOffers.push(getExitOfferOption());
-    if (earlyCatOffers.length > 0) {
-      return [randomFrom(earlyCatOffers)];
-    }
+    if (!muteControlUnlocked) return [getMuteOfferOption()];
+  }
+
+  if (roundNumber === GAME_CONFIG.scoreboardOfferRound) {
+    if (!scoreboardUnlocked) return [getScoreboardOfferOption()];
+  }
+
+  if (roundNumber === GAME_CONFIG.exitOfferRound) {
+    if (!exitControlUnlocked) return [getExitOfferOption()];
   }
 
   if (roundNumber === GAME_CONFIG.trapTeaseRound) {
@@ -1930,7 +2770,10 @@ function getSpecialOfferOptions(roundNumber = round) {
     if (!muteControlUnlocked && roundNumber > GAME_CONFIG.muteOfferRound) {
       offerPool.push(getMuteOfferOption());
     }
-    if (!exitControlUnlocked && roundNumber > GAME_CONFIG.muteOfferRound) {
+    if (!scoreboardUnlocked && roundNumber > GAME_CONFIG.scoreboardOfferRound) {
+      offerPool.push(getScoreboardOfferOption());
+    }
+    if (!exitControlUnlocked && roundNumber > GAME_CONFIG.exitOfferRound) {
       offerPool.push(getExitOfferOption());
     }
 
@@ -1942,7 +2785,10 @@ function getSpecialOfferOptions(roundNumber = round) {
       kind: "trap",
       offerId: TRAP_TIERS[currentTrapTierIndex].id,
       tierId: TRAP_TIERS[currentTrapTierIndex].id,
-      cost: TRAP_TIERS[currentTrapTierIndex].costMin
+      cost: randomIntBetween(
+        TRAP_TIERS[currentTrapTierIndex].costMin,
+        TRAP_TIERS[currentTrapTierIndex].costMax
+      )
     });
 
     if (roundNumber >= GAME_CONFIG.timeOfferStartsAtRound && Math.random() >= GAME_CONFIG.timeOfferShare) {
@@ -1957,12 +2803,13 @@ function getSpecialOfferOptions(roundNumber = round) {
 
   if (
     roundNumber > GAME_CONFIG.muteOfferRound &&
-    (!muteControlUnlocked || !exitControlUnlocked) &&
+    (!muteControlUnlocked || !scoreboardUnlocked || !exitControlUnlocked) &&
     Math.random() < GAME_CONFIG.trapOfferChance
   ) {
     const catOffers = [];
     if (!muteControlUnlocked) catOffers.push(getMuteOfferOption());
-    if (!exitControlUnlocked) catOffers.push(getExitOfferOption());
+    if (!scoreboardUnlocked && roundNumber > GAME_CONFIG.scoreboardOfferRound) catOffers.push(getScoreboardOfferOption());
+    if (!exitControlUnlocked && roundNumber > GAME_CONFIG.exitOfferRound) catOffers.push(getExitOfferOption());
     return catOffers.length > 0 ? [randomFrom(catOffers)] : [];
   }
 
@@ -1972,6 +2819,7 @@ function getSpecialOfferOptions(roundNumber = round) {
 function hideTrapOffer() {
   trapOffer.classList.add("hidden");
   trapOffer.classList.remove("purchased", "compact");
+  trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
   currentSpecialOfferOptions = [];
   currentSpecialOfferKind = "trap";
   currentSpecialOfferSellerImage = "images/racoon.png";
@@ -1983,7 +2831,8 @@ function hideTrapOffer() {
   trapOfferNote.textContent = "";
   trapOfferNote.classList.add("hidden");
   trapOfferSummary.classList.add("hidden");
-  trapOfferSummaryImage.src = "images/trap.png";
+  trapOfferSummaryVisual.classList.remove("celebrate");
+  trapOfferSummaryItem.innerHTML = `<img class="trap-offer-summary-image" id="trapOfferSummaryImage" src="images/trap.png" alt="" />`;
   trapOfferSummaryText.textContent = copy("trap_basic");
   trapOfferRows.innerHTML = "";
   trapOfferRows.classList.remove("hidden");
@@ -1996,12 +2845,14 @@ function renderSpecialOffer(options) {
   currentOfferSummaryData = null;
   trapOffer.classList.remove("hidden", "purchased", "compact");
   trapOfferSummary.classList.add("hidden");
+  trapOfferSummaryVisual.classList.remove("celebrate");
   trapOfferRows.classList.remove("hidden");
   trapOfferDismissBtn.classList.add("hidden");
+  trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
 
   const primaryOption = options[0] || null;
   currentSpecialOfferKind = primaryOption?.kind || "trap";
-  currentSpecialOfferSellerImage = (currentSpecialOfferKind === "time" || currentSpecialOfferKind === "mute" || currentSpecialOfferKind === "exit")
+  currentSpecialOfferSellerImage = (currentSpecialOfferKind === "time" || currentSpecialOfferKind === "mute" || currentSpecialOfferKind === "scoreboard" || currentSpecialOfferKind === "exit")
     ? "images/cat.png"
     : "images/racoon.png";
   trapOfferSeller.src = currentSpecialOfferSellerImage;
@@ -2013,6 +2864,11 @@ function renderSpecialOffer(options) {
     trapOfferNote.classList.add("hidden");
   } else if (currentSpecialOfferKind === "mute") {
     trapOfferMessage.textContent = copy("muteOfferMessage");
+    trapOfferMessage.classList.remove("hidden");
+    trapOfferNote.textContent = "";
+    trapOfferNote.classList.add("hidden");
+  } else if (currentSpecialOfferKind === "scoreboard") {
+    trapOfferMessage.textContent = copy("scoreOfferMessage");
     trapOfferMessage.classList.remove("hidden");
     trapOfferNote.textContent = "";
     trapOfferNote.classList.add("hidden");
@@ -2050,23 +2906,13 @@ function renderSpecialOffer(options) {
   trapOfferRows.innerHTML = options.map(option => {
     const isTimeOffer = option.kind === "time";
     const isMuteOffer = option.kind === "mute";
+    const isScoreboardOffer = option.kind === "scoreboard";
     const isExitOffer = option.kind === "exit";
-    const tier = (isTimeOffer || isMuteOffer || isExitOffer) ? null : getTrapTierById(option.tierId);
-    const rowTitle = isTimeOffer
-      ? copy("timeOfferTitle", getTimeOfferSeconds())
-      : isMuteOffer
-        ? copy("muteOfferTitle")
-        : isExitOffer
-          ? copy("exitOfferTitle")
-        : getTrapTierLabel(tier.id);
-    const rowVisual = isMuteOffer
-      ? `<div class="trap-offer-row-icon" aria-hidden="true">🔇</div>`
-      : isExitOffer
-        ? `<div class="trap-offer-row-button" aria-hidden="true">${copy("exit")}</div>`
-      : `<img class="trap-offer-row-image" src="${isTimeOffer ? "images/time.png" : tier.image}" alt="" />`;
+    const rowTitle = getOfferProductLabel(option.kind, option.tierId);
+    const rowVisual = getOfferVisualMarkup(option.kind, { tierId: option.tierId });
     const rowCost = isTimeOffer ? getTimeOfferCost() : option.cost;
     return `
-      <div class="trap-offer-row${isTimeOffer ? " trap-offer-row-time" : ""}">
+      <div class="trap-offer-row${isTimeOffer ? " trap-offer-row-time" : ""}${isScoreboardOffer ? " trap-offer-row-scoreboard" : ""}">
         ${rowVisual}
         <div class="trap-offer-row-copy">
           <div class="trap-offer-row-title">${rowTitle}</div>
@@ -2081,30 +2927,32 @@ function renderSpecialOffer(options) {
 function showPurchasedOfferSummary(summaryData) {
   currentSpecialOfferState = "summary";
   currentOfferSummaryData = summaryData;
-  const summaryImage = summaryData.kind === "time"
-    ? "images/time.png"
-    : summaryData.kind === "mute"
-      ? "images/cat.png"
-      : summaryData.kind === "exit"
-        ? "images/cat.png"
-    : getTrapTierById(summaryData.tierId).image;
   const summaryLabel = summaryData.kind === "time"
     ? copy("timeOfferSummary", summaryData.seconds)
     : summaryData.kind === "mute"
       ? copy("muteOfferSummary")
+      : summaryData.kind === "scoreboard"
+        ? copy("scoreOfferSummary")
       : summaryData.kind === "exit"
         ? copy("exitOfferSummary")
     : `${getTrapTierLabel(summaryData.tierId)}: 1`;
+  const productLabel = getPurchasedProductLabel(summaryData.kind, summaryData.tierId);
+  const purchaseMessage = copy("purchaseMessage", productLabel);
 
   trapOffer.classList.remove("hidden", "compact");
   trapOffer.classList.add("purchased");
   trapOfferSeller.src = currentSpecialOfferSellerImage;
-  trapOfferMessage.textContent = "";
-  trapOfferMessage.classList.add("hidden");
+  trapOffer.querySelector(".trap-offer-title").textContent = copy("purchaseTitle");
+  trapOfferMessage.textContent = purchaseMessage;
+  trapOfferMessage.classList.remove("hidden");
   trapOfferNote.classList.add("hidden");
   trapOfferRows.classList.add("hidden");
   trapOfferDismissBtn.classList.add("hidden");
-  trapOfferSummaryImage.src = summaryImage;
+  trapOfferSummaryVisual.classList.add("celebrate");
+  trapOfferSummaryItem.innerHTML = getOfferVisualMarkup(summaryData.kind, {
+    tierId: summaryData.tierId,
+    summary: true
+  });
   trapOfferSummaryText.textContent = summaryLabel;
   trapOfferSummary.classList.remove("hidden");
 }
@@ -2112,6 +2960,7 @@ function showPurchasedOfferSummary(summaryData) {
 function showTrapOfferInsufficient() {
   currentSpecialOfferState = "insufficient";
   trapOffer.classList.remove("hidden", "purchased", "compact");
+  trapOfferSummaryVisual.classList.remove("celebrate");
   trapOfferSeller.src = currentSpecialOfferKind === "trap"
     ? "images/sad_racoon.png"
     : currentSpecialOfferSellerImage;
@@ -2120,28 +2969,72 @@ function showTrapOfferInsufficient() {
   trapOfferNote.classList.add("hidden");
   trapOfferSummary.classList.add("hidden");
   trapOfferRows.classList.add("hidden");
+  trapOfferDismissBtn.textContent = copy("dismissInsufficient");
   trapOfferDismissBtn.classList.remove("hidden");
 }
 
 function renderRoundResultText() {
-  const lines = [`<strong>${copy("catsRescued", rescuedThisRound, targetCats)}</strong>`];
-
-  if (round === GAME_CONFIG.startingRound) {
-    lines.push(`<span class="bonus-line">${copy("firstRoundHurry", GAME_CONFIG.onboardingTimeStealSeconds, nextRoundTime)}</span>`);
-  } else if (currentResultBonusLine) {
-    lines.push(`<span class="bonus-line">${currentResultBonusLine}</span>`);
+  if (!currentRoundResultSummary) {
+    resultText.classList.remove("game-over-text");
+    resultText.innerHTML = "";
+    return;
   }
 
-  currentResultExtraLines.forEach(line => {
-    lines.push(`<span class="bonus-line">${line}</span>`);
-  });
+  resultText.classList.remove("game-over-text");
+  resultText.innerHTML = `
+    <strong>${copy(
+      "catsRescued",
+      currentRoundResultSummary.rescued,
+      currentRoundResultSummary.rescuable
+    )}</strong>
+    ${currentRoundResultSummary.perfectRescue ? `<div class="result-free-hairball">${copy("freeHairballWon")}</div>` : ""}
+  `;
+}
 
-  resultText.innerHTML = lines.join("<br>");
+function renderResultBreakdown() {
+  if (!currentRoundResultSummary) {
+    resultBreakdown.innerHTML = "";
+    resultBreakdown.classList.add("hidden");
+    return;
+  }
+
+  const rows = [
+    {
+      label: copy("resultBreakdownRescued"),
+      value: `${currentRoundResultSummary.rescued} / ${currentRoundResultSummary.rescuable}`
+    },
+    {
+      label: copy("resultBreakdownMoleLost"),
+      value: currentRoundResultSummary.moleLost
+    },
+    {
+      label: copy("resultBreakdownTime"),
+      value: formatSignedValue(currentRoundResultSummary.timeDelta, "s")
+    },
+    {
+      label: copy("resultBreakdownHairballs"),
+      value: formatSignedValue(currentRoundResultSummary.hairballsEarned)
+    },
+    {
+      label: copy("resultBreakdownScore"),
+      value: formatSignedValue(currentRoundResultSummary.scoreEarned)
+    }
+  ];
+
+  resultBreakdown.innerHTML = rows.map(row => `
+    <div class="result-breakdown-row">
+      <span class="result-breakdown-label">${row.label}</span>
+      <span class="result-breakdown-value">${row.value}</span>
+    </div>
+  `).join("");
+  resultBreakdown.classList.remove("hidden");
 }
 
 function showResult() {
-  const missedCats = Math.max(0, targetCats - rescuedThisRound);
+  const rescuableCats = getRescuableCatCount();
+  const missedCats = Math.max(0, rescuableCats - rescuedThisRound);
   const missedCatPenaltyEnabled = round >= GAME_CONFIG.missedCatPenaltyStartsAtRound;
+  const perfectRescue = isPerfectRescueThisRound();
   let delta = 0;
   let clockDelta = 0;
 
@@ -2149,8 +3042,10 @@ function showResult() {
 
   totalRescuedCats += rescuedThisRound;
   totalMissedCats += missedCats;
+  currentRoundRescuableCats = rescuableCats;
+  currentRoundMissedCats = missedCats;
 
-  if (rescuedThisRound === targetCats) {
+  if (perfectRescue) {
     delta = GAME_CONFIG.perfectRescueBonusSeconds;
     totalHairballs += 1;
     earnedHairballThisRound = true;
@@ -2176,24 +3071,30 @@ function showResult() {
     totalHairballs += yarnHairballsEarnedThisRound;
   }
 
-  if (round === GAME_CONFIG.startingRound) {
-    delta -= GAME_CONFIG.onboardingTimeStealSeconds;
-  }
-
   nextRoundTime = roundTime + delta + clockDelta;
   gameOver = nextRoundTime < GAME_CONFIG.minimumNextRoundTimeSeconds;
   resultTitle.textContent = getRoundResultTitle();
+  updateResultTitleAppearance({ perfect: !gameOver && perfectRescue });
 
-  const bonusLine = formatBonusLine(delta);
-  currentResultBonusLine = bonusLine;
-  currentResultExtraLines = [];
-  if (bonusClockEarnedThisRound) {
-    currentResultExtraLines.push(copy("earnedClockLine", GAME_CONFIG.bonusClockSeconds));
-  }
-  if (yarnHairballsEarnedThisRound > 0) {
-    currentResultExtraLines.push(copy("earnedHairballLine", yarnHairballsEarnedThisRound));
-  }
+  currentRoundScore = (
+    rescuedThisRound +
+    (perfectRescue ? 3 : 0) +
+    round +
+    clockTilesSelectedThisRound +
+    yarnTilesSelectedThisRound
+  );
+  totalScore += currentRoundScore;
+  currentRoundResultSummary = {
+    rescued: rescuedThisRound,
+    rescuable: rescuableCats,
+    moleLost: moleCatsLostThisRound,
+    timeDelta: delta + clockDelta,
+    hairballsEarned: (earnedHairballThisRound ? 1 : 0) + yarnHairballsEarnedThisRound,
+    scoreEarned: currentRoundScore,
+    perfectRescue
+  };
   updateSummaryTexts();
+  updateScoreDisplay();
   const totalCatsSeen = totalRescuedCats + totalMissedCats;
   const rescueScore = totalCatsSeen === 0
     ? 0
@@ -2201,14 +3102,13 @@ function showResult() {
   currentRescueScore = rescueScore;
 
   if (gameOver) {
-    const rivalMultiplier = 1.1 + Math.random() * 0.15;
-    const rivalScore = rescueScore === 0
-      ? Math.floor(10 + Math.random() * 16)
-      : Math.min(100, Math.round(rescueScore * rivalMultiplier));
+    const rivalLead = Math.max(3, Math.round(Math.max(6, totalScore) * (0.08 + Math.random() * 0.14)));
+    const rivalScore = totalScore + rivalLead;
     const rivalName = randomFakePlayerName();
     currentRivalName = rivalName;
     currentRivalScore = rivalScore;
     resultTitle.textContent = copy("gameOver");
+    updateResultTitleAppearance({ perfect: false });
     renderGameOverText();
     resourceSummary.classList.add("hidden");
     timeNote.textContent = "";
@@ -2220,6 +3120,7 @@ function showResult() {
   } else {
     playTrack("start", { volume: 0.95 });
     renderRoundResultText();
+    renderResultBreakdown();
     resourceSummary.classList.remove("hidden");
     timeNote.textContent = "";
     const specialOfferOptions = getSpecialOfferOptions(round);
@@ -2237,6 +3138,9 @@ function showResult() {
   }
 
   resultPanel.classList.add("show");
+  if (!gameOver) {
+    playResultTimeBarAnimation();
+  }
 }
 
 async function beginRound() {
@@ -2245,12 +3149,21 @@ async function beginRound() {
   gameEl.classList.remove("home-screen-active");
   resultPanel.classList.remove("show");
   timeoutFlash.classList.remove("show");
+  currentRoundResultSummary = null;
+  currentRoundScore = 0;
+  if (CHECKPOINT_ROUNDS.includes(round)) {
+    saveCheckpointSnapshot(round);
+  }
+  resultBreakdown.innerHTML = "";
+  resultBreakdown.classList.add("hidden");
+  updateResultTitleAppearance({ perfect: false });
   hideTrapOffer();
   hideMoleRunner(true);
   prepareRoundHazards();
   remainingTime = roundTime;
   createBoard();
   updateTopUI();
+  flushPendingUiUnlockAnimations();
   playRoundStartSound();
   await deployTrapForRound();
   showIdleMoleRunner();
@@ -2275,23 +3188,29 @@ playBtn.addEventListener("click", () => {
   showIntroScreen();
 });
 
+checkpointList.addEventListener("click", event => {
+  const button = event.target.closest(".checkpoint-btn");
+  if (!button) return;
+
+  const checkpointRound = Number(button.dataset.checkpointRound);
+  const snapshot = getCheckpointSnapshot(checkpointRound);
+  if (!applyCheckpointSnapshot(snapshot)) return;
+
+  ensureAudio();
+  beginRound();
+});
+
+clearCacheBtn.addEventListener("click", async () => {
+  await clearBrowserDataAndReload();
+});
+
 startBtn.addEventListener("click", () => {
   ensureAudio();
   beginRound();
 });
 
-languageToggle.addEventListener("click", event => {
-  const button = event.target.closest(".language-toggle-btn");
-  if (!button || button.dataset.lang === currentLanguage) {
-    return;
-  }
-
-  if (!setCurrentLanguage(button.dataset.lang, { persist: true })) {
-    return;
-  }
-
-  updateLanguageUI();
-});
+languageToggle.addEventListener("click", handleLanguageToggleClick);
+landingLanguageToggle.addEventListener("click", handleLanguageToggleClick);
 
 muteToggle.addEventListener("click", () => {
   if (!muteControlUnlocked) return;
@@ -2346,12 +3265,22 @@ trapOfferRows.addEventListener("click", event => {
     });
   } else if (selectedOption.kind === "mute") {
     muteControlUnlocked = true;
+    persistStoredProgress();
     showPurchasedOfferSummary({
       kind: "mute"
     });
     updateMuteButton();
+  } else if (selectedOption.kind === "scoreboard") {
+    scoreboardUnlocked = true;
+    pendingUiUnlockAnimations.add("scoreboard");
+    persistStoredProgress();
+    showPurchasedOfferSummary({
+      kind: "scoreboard"
+    });
+    updateScoreDisplay();
   } else if (selectedOption.kind === "exit") {
     exitControlUnlocked = true;
+    persistStoredProgress();
     showPurchasedOfferSummary({
       kind: "exit"
     });
