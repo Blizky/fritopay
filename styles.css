@@ -223,31 +223,6 @@ body {
   transition: opacity 0.25s ease;
 }
 
-.dirt-strip {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: var(--dirt-width, 100%);
-  height: var(--dirt-height, 32px);
-  display: block;
-  opacity: 0;
-  transform: translate(var(--dirt-x, 0), var(--dirt-y, 0px));
-  transform-origin: center bottom;
-  pointer-events: none !important;
-  touch-action: none;
-  -webkit-user-drag: none;
-  user-select: none;
-  z-index: 9;
-  object-fit: fill;
-  filter: drop-shadow(0 4px 6px rgba(64, 40, 28, 0.24));
-  transition: opacity 0.25s ease;
-}
-
-.dirt-strip.show {
-  opacity: 0.98;
-  transform: translate(var(--dirt-x, 0), var(--dirt-y, 0px));
-}
-
 .trap-runner {
   position: absolute;
   left: 0;
@@ -297,10 +272,6 @@ body {
 .mole-runner.tappable {
   pointer-events: auto !important;
   touch-action: manipulation;
-}
-
-.mole-runner.idle {
-  animation: moleRunnerPatrol var(--mole-patrol-duration, 4200ms) ease-in-out infinite alternate;
 }
 
 .mole-runner.entering {
@@ -498,32 +469,6 @@ body {
   background: #e7e0e4;
   border-color: #c7b9c1;
   animation: popNull 0.3s ease;
-}
-
-.tile.mole-warning {
-  background: #f1d2d9;
-  border-color: #dda4b2;
-  animation: moleWarning 0.25s ease;
-}
-
-.tile.mole-drop {
-  animation: moleDrop 0.2s ease forwards;
-}
-
-.tile.mole-gap {
-  opacity: 0;
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-  pointer-events: none;
-}
-
-.tile.tile-empty {
-  pointer-events: none;
-}
-
-.tile.mole-fall {
-  animation: moleFall 0.2s ease-out;
 }
 
 .tile .emoji {
@@ -1092,7 +1037,6 @@ body {
 .game.home-screen-active .topbar,
 .game.home-screen-active .board,
 .game.home-screen-active .mole-runner,
-.game.home-screen-active .dirt-strip,
 .game.home-screen-active .trap-runner,
 .game.home-screen-active .trap-outcome-splash,
 .game.home-screen-active .timeout-flash {
@@ -1164,18 +1108,14 @@ body {
   touch-action: manipulation;
 }
 
-.checkpoint-list {
+.simulated-start-list {
   width: min(100%, 320px);
   display: grid;
   gap: 8px;
   margin-top: 14px;
 }
 
-.checkpoint-list.hidden {
-  display: none;
-}
-
-.checkpoint-btn {
+.simulated-start-btn {
   width: 100%;
   border: 2px solid rgba(235, 220, 181, 0.94);
   border-radius: 999px;
@@ -1191,7 +1131,7 @@ body {
   touch-action: manipulation;
 }
 
-.checkpoint-btn:active {
+.simulated-start-btn:active {
   transform: scale(0.98);
 }
 
@@ -2245,25 +2185,6 @@ body {
   }
 }
 
-@keyframes moleWarning {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-5px);
-  }
-  40% {
-    transform: translateX(5px);
-  }
-  60% {
-    transform: translateX(-4px);
-  }
-  80% {
-    transform: translateX(4px);
-  }
-}
-
 @keyframes moleHitFlash {
   0% {
     opacity: 1;
@@ -2314,28 +2235,6 @@ body {
   100% {
     opacity: 0;
     transform: translateY(-18px) scale(1.08);
-  }
-}
-
-@keyframes moleDrop {
-  0% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(130%);
-  }
-}
-
-@keyframes moleFall {
-  0% {
-    opacity: 0;
-    transform: translateY(-130%);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -2501,15 +2400,6 @@ body {
       saturate(5.4)
       hue-rotate(-24deg)
       brightness(0.92);
-  }
-}
-
-@keyframes moleRunnerPatrol {
-  0% {
-    transform: translate(var(--mole-patrol-start, -150%), var(--mole-y, 0)) rotate(-3deg);
-  }
-  100% {
-    transform: translate(var(--mole-patrol-end, 0), var(--mole-y, 0)) rotate(3deg);
   }
 }
 

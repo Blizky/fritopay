@@ -105,8 +105,6 @@ const GAME_CONFIG = {
   effectDurationMs: 800,
   // Mole meter value at the start of a new game.
   moleStartsAt: 0.0,
-  // The mole becomes visible from this round onward.
-  moleVisibleRound: 4,
   // The mole event cannot happen before this round.
   moleEarliestRound: 4,
   // Lowest random mole meter gain added at the start of a round.
@@ -139,8 +137,6 @@ const GAME_CONFIG = {
   moleEarlierAttackRatioPerRound: 0.03,
   // Cap for how early the mole can attack in the late game.
   moleEarlierAttackMaxRatio: 0.75,
-  // The mole patrol speed while idling at the bottom border.
-  molePatrolMs: 4200,
   // Chance that a mole attack targets a cat tile first.
   moleCatTargetChance: 0.25,
   // Time for the mole to pop up over a tile.
@@ -245,10 +241,9 @@ const languageToggle = document.getElementById("languageToggle");
 const muteToggle = document.getElementById("muteToggle");
 const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
-const dirtStrip = document.getElementById("dirtStrip");
 const trapRunner = document.getElementById("trapRunner");
 const trapOutcomeSplash = document.getElementById("trapOutcomeSplash");
-const checkpointList = document.getElementById("checkpointList");
+const simulatedStartList = document.getElementById("simulatedStartList");
 
 const landingPanel = document.getElementById("landingPanel");
 const landingLanguageToggle = document.getElementById("landingLanguageToggle");
@@ -364,7 +359,7 @@ const activeAudioPlayers = new Set();
 const pendingUiUnlockAnimations = new Set();
 const LANGUAGE_STORAGE_KEY = "fritopay-language";
 const PROGRESS_STORAGE_KEY = "fritopay-progress";
-const CHECKPOINT_ROUNDS = [5, 10, 15, 20];
+const SIMULATED_START_ROUNDS = [5, 10, 15];
 
 const COPY = {
   en: {
@@ -385,7 +380,7 @@ const COPY = {
     freeHairballWon: "You won a free hairball!",
     perfectRescueTimeWon: value => `You won +${value} seconds.`,
     startPlaying: "Start playing",
-    startAtLevel: value => `Start at level ${value}`,
+    jumpToLevel: value => `Jump to level ${value}`,
     clearCache: "Clear cache",
     startRescuingCats: "Start rescuing cats",
     timeout: "Time's up",
@@ -477,7 +472,7 @@ const COPY = {
     freeHairballWon: "¡Ganaste una bola de pelo gratis!",
     perfectRescueTimeWon: value => `Ganaste +${value} segundos.`,
     startPlaying: "Empezar a jugar",
-    startAtLevel: value => `Empezar en nivel ${value}`,
+    jumpToLevel: value => `Ir al nivel ${value}`,
     clearCache: "Borrar cache",
     startRescuingCats: "Empezar a rescatar gatos",
     timeout: "Se acabó el tiempo",
@@ -580,41 +575,8 @@ function getDefaultStoredProgress() {
   return {
     muteUnlocked: false,
     exitUnlocked: false,
-    scoreboardUnlocked: false,
-    checkpoints: {}
+    scoreboardUnlocked: false
   };
-}
-
-function sanitizeStoredCheckpoints(rawCheckpoints) {
-  const sanitized = {};
-  const source = rawCheckpoints && typeof rawCheckpoints === "object" ? rawCheckpoints : {};
-
-  CHECKPOINT_ROUNDS.forEach((checkpointRound) => {
-    const rawCheckpoint = source[checkpointRound];
-    if (!rawCheckpoint || typeof rawCheckpoint !== "object") return;
-
-    const snapshotRound = Number(rawCheckpoint.round);
-    if (snapshotRound !== checkpointRound) return;
-
-    sanitized[checkpointRound] = {
-      round: checkpointRound,
-      targetCats: Math.max(1, Number(rawCheckpoint.targetCats) || GAME_CONFIG.startingCats),
-      roundTime: Math.max(1, Number(rawCheckpoint.roundTime) || GAME_CONFIG.startingTimeSeconds),
-      totalHairballs: Math.max(0, Number(rawCheckpoint.totalHairballs) || 0),
-      totalScore: Math.max(0, Number(rawCheckpoint.totalScore) || 0),
-      totalRescuedCats: Math.max(0, Number(rawCheckpoint.totalRescuedCats) || 0),
-      totalMissedCats: Math.max(0, Number(rawCheckpoint.totalMissedCats) || 0),
-      muteUnlocked: Boolean(rawCheckpoint.muteUnlocked),
-      exitUnlocked: Boolean(rawCheckpoint.exitUnlocked),
-      scoreboardUnlocked: Boolean(rawCheckpoint.scoreboardUnlocked),
-      cassetteCount: clamp(Number(rawCheckpoint.cassetteCount) || 0, 0, GAME_CONFIG.maxCassetteMusicTracks - 1),
-      currentTrapTierIndex: clamp(Number(rawCheckpoint.currentTrapTierIndex) || 0, 0, TRAP_TIERS.length - 1),
-      diamondTrapFailed: Boolean(rawCheckpoint.diamondTrapFailed),
-      moleAppears: Math.max(0, Number(rawCheckpoint.moleAppears) || GAME_CONFIG.moleStartsAt)
-    };
-  });
-
-  return sanitized;
 }
 
 function getStoredProgress() {
@@ -626,8 +588,7 @@ function getStoredProgress() {
     return {
       muteUnlocked: Boolean(parsedProgress?.muteUnlocked),
       exitUnlocked: Boolean(parsedProgress?.exitUnlocked),
-      scoreboardUnlocked: Boolean(parsedProgress?.scoreboardUnlocked),
-      checkpoints: sanitizeStoredCheckpoints(parsedProgress?.checkpoints)
+      scoreboardUnlocked: Boolean(parsedProgress?.scoreboardUnlocked)
     };
   } catch {
     return getDefaultStoredProgress();
@@ -639,8 +600,7 @@ function persistStoredProgress() {
     window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify({
       muteUnlocked: muteControlUnlocked,
       exitUnlocked: exitControlUnlocked,
-      scoreboardUnlocked,
-      checkpoints: getStoredProgress().checkpoints
+      scoreboardUnlocked
     }));
   } catch {}
 }
@@ -664,91 +624,125 @@ function clearStoredProgress() {
   cassetteCount = 0;
 }
 
-function buildCheckpointSnapshot() {
-  return {
-    round,
-    targetCats,
-    roundTime,
-    totalHairballs,
-    totalScore,
-    totalRescuedCats,
-    totalMissedCats,
-    muteUnlocked: muteControlUnlocked,
-    exitUnlocked: exitControlUnlocked,
-    scoreboardUnlocked,
-    cassetteCount,
-    currentTrapTierIndex,
-    diamondTrapFailed,
-    moleAppears
-  };
+function getAverageMoleGain() {
+  return (GAME_CONFIG.moleGainMin + GAME_CONFIG.moleGainMax) / 2;
 }
 
-function saveCheckpointSnapshot(checkpointRound) {
-  if (!CHECKPOINT_ROUNDS.includes(checkpointRound)) return;
+function simulatePermanentOfferPurchases(simulatedState, completedRound) {
+  if (
+    completedRound === GAME_CONFIG.muteOfferRound &&
+    !simulatedState.muteUnlocked &&
+    simulatedState.totalHairballs >= GAME_CONFIG.muteOfferCostHairballs
+  ) {
+    simulatedState.totalHairballs -= GAME_CONFIG.muteOfferCostHairballs;
+    simulatedState.muteUnlocked = true;
+  }
 
-  const storedProgress = getStoredProgress();
-  const nextProgress = {
-    ...storedProgress,
-    muteUnlocked: muteControlUnlocked,
-    exitUnlocked: exitControlUnlocked,
-    scoreboardUnlocked,
-    checkpoints: {
-      ...storedProgress.checkpoints,
-      [checkpointRound]: buildCheckpointSnapshot()
+  if (
+    completedRound === GAME_CONFIG.scoreboardOfferRound &&
+    !simulatedState.scoreboardUnlocked &&
+    simulatedState.totalHairballs >= GAME_CONFIG.scoreboardOfferCostHairballs
+  ) {
+    simulatedState.totalHairballs -= GAME_CONFIG.scoreboardOfferCostHairballs;
+    simulatedState.scoreboardUnlocked = true;
+  }
+
+  if (
+    completedRound === GAME_CONFIG.exitOfferRound &&
+    !simulatedState.exitUnlocked &&
+    simulatedState.totalHairballs >= GAME_CONFIG.exitOfferCostHairballs
+  ) {
+    simulatedState.totalHairballs -= GAME_CONFIG.exitOfferCostHairballs;
+    simulatedState.exitUnlocked = true;
+  }
+}
+
+function buildSimulatedStartState(startRound) {
+  const safeStartRound = clamp(startRound, GAME_CONFIG.startingRound, 999);
+  const simulatedState = {
+    round: GAME_CONFIG.startingRound,
+    targetCats: GAME_CONFIG.startingCats,
+    roundTime: GAME_CONFIG.startingTimeSeconds,
+    totalHairballs: 0,
+    totalScore: 0,
+    totalRescuedCats: 0,
+    totalMissedCats: 0,
+    muteUnlocked: false,
+    exitUnlocked: false,
+    scoreboardUnlocked: false,
+    cassetteCount: 0,
+    currentTrapTierIndex: 0,
+    diamondTrapFailed: false,
+    moleAppears: GAME_CONFIG.moleStartsAt,
+    nextRoundTime: GAME_CONFIG.startingTimeSeconds,
+    nextRoundCats: GAME_CONFIG.startingCats
+  };
+
+  for (let completedRound = GAME_CONFIG.startingRound; completedRound < safeStartRound; completedRound++) {
+    simulatedState.moleAppears += getAverageMoleGain();
+
+    if (completedRound === GAME_CONFIG.moleEarliestRound) {
+      simulatedState.moleAppears = Math.max(
+        simulatedState.moleAppears,
+        GAME_CONFIG.moleTriggerThreshold
+      );
     }
-  };
 
-  try {
-    window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(nextProgress));
-  } catch {}
+    if (
+      completedRound >= GAME_CONFIG.moleEarliestRound &&
+      simulatedState.moleAppears >= GAME_CONFIG.moleTriggerThreshold
+    ) {
+      simulatedState.moleAppears = Math.max(
+        0,
+        simulatedState.moleAppears - GAME_CONFIG.moleMeterPenaltyOnTrigger
+      );
+    }
+
+    const rescuedCats = Math.min(simulatedState.targetCats, getBoardSize(completedRound).tileCount);
+    simulatedState.totalRescuedCats += rescuedCats;
+    simulatedState.totalScore += rescuedCats + 3 + completedRound;
+    simulatedState.totalHairballs += 1;
+
+    const nextRoundNumber = completedRound + 1;
+    const nextRoundTime = simulatedState.roundTime + GAME_CONFIG.perfectRescueBonusSeconds;
+    const nextRoundCats = Math.min(
+      simulatedState.targetCats + GAME_CONFIG.catsAddedPerRound,
+      getBoardSize(nextRoundNumber).tileCount
+    );
+
+    simulatePermanentOfferPurchases(simulatedState, completedRound);
+
+    simulatedState.round = nextRoundNumber;
+    simulatedState.roundTime = nextRoundTime;
+    simulatedState.targetCats = nextRoundCats;
+    simulatedState.nextRoundTime = nextRoundTime;
+    simulatedState.nextRoundCats = nextRoundCats;
+  }
+
+  return simulatedState;
 }
 
-function getCheckpointSnapshot(checkpointRound) {
-  return getStoredProgress().checkpoints[String(checkpointRound)] || null;
-}
+function applySimulatedStartState(startRound) {
+  resetGameState();
 
-function renderCheckpointButtons() {
-  if (!checkpointList) return;
-
-  const checkpoints = getStoredProgress().checkpoints;
-  const buttons = CHECKPOINT_ROUNDS
-    .filter(checkpointRound => Boolean(checkpoints[String(checkpointRound)]))
-    .map(checkpointRound => `
-      <button class="checkpoint-btn" type="button" data-checkpoint-round="${checkpointRound}">
-        ${copy("startAtLevel", checkpointRound)}
-      </button>
-    `)
-    .join("");
-
-  checkpointList.innerHTML = buttons;
-  checkpointList.classList.toggle("hidden", buttons.length === 0);
-}
-
-function applyCheckpointSnapshot(snapshot) {
-  if (!snapshot) return false;
-
-  clearInterval(timerInterval);
-  clearMoleRepeatTimeout();
-  stopRoundSoundtrack();
-  reviewInProgress = false;
-  gameOver = false;
-  round = snapshot.round;
-  targetCats = snapshot.targetCats;
-  roundTime = snapshot.roundTime;
+  const simulatedState = buildSimulatedStartState(startRound);
+  round = simulatedState.round;
+  targetCats = simulatedState.targetCats;
+  roundTime = simulatedState.roundTime;
   remainingTime = roundTime;
-  totalHairballs = snapshot.totalHairballs;
-  totalScore = snapshot.totalScore;
-  totalRescuedCats = snapshot.totalRescuedCats;
-  totalMissedCats = snapshot.totalMissedCats;
-  muteControlUnlocked = snapshot.muteUnlocked;
-  exitControlUnlocked = snapshot.exitUnlocked;
-  scoreboardUnlocked = snapshot.scoreboardUnlocked;
-  cassetteCount = snapshot.cassetteCount;
-  currentTrapTierIndex = snapshot.currentTrapTierIndex;
-  diamondTrapFailed = snapshot.diamondTrapFailed;
-  moleAppears = snapshot.moleAppears;
-  nextRoundTime = roundTime;
-  nextRoundCats = targetCats;
+  totalHairballs = simulatedState.totalHairballs;
+  totalScore = simulatedState.totalScore;
+  totalRescuedCats = simulatedState.totalRescuedCats;
+  totalMissedCats = simulatedState.totalMissedCats;
+  muteControlUnlocked = simulatedState.muteUnlocked;
+  exitControlUnlocked = simulatedState.exitUnlocked;
+  scoreboardUnlocked = simulatedState.scoreboardUnlocked;
+  cassetteCount = simulatedState.cassetteCount;
+  currentTrapTierIndex = simulatedState.currentTrapTierIndex;
+  diamondTrapFailed = simulatedState.diamondTrapFailed;
+  moleAppears = simulatedState.moleAppears;
+  nextRoundTime = simulatedState.nextRoundTime;
+  nextRoundCats = simulatedState.nextRoundCats;
   currentRoundResultSummary = null;
   trapPurchasedForNextRound = null;
   activeTrap = null;
@@ -783,8 +777,6 @@ function applyCheckpointSnapshot(snapshot) {
   hideMoleRunner(true);
   hideTrapRunner(true);
   applyBoardLayout(round);
-
-  return true;
 }
 
 async function clearBrowserCaches() {
@@ -1452,9 +1444,7 @@ function buildTileData(type = "other") {
             ? "🧶"
             : type === "cassette"
               ? ""
-            : type === "empty"
-              ? ""
-            : randomFrom(OTHER_EMOJIS),
+              : randomFrom(OTHER_EMOJIS),
     imageSrc:
       type === "clock"
         ? "images/time.png"
@@ -1467,7 +1457,6 @@ function buildTileData(type = "other") {
     isClock: type === "clock",
     isYarn: type === "yarn",
     isCassette: type === "cassette",
-    isEmpty: type === "empty",
     skin,
     selected: false,
     state: "idle"
@@ -1588,9 +1577,6 @@ function createTileButton(index) {
   const tileData = tiles[index];
 
   tile.className = "tile";
-  if (tileData.isEmpty) {
-    tile.classList.add("tile-empty", "mole-gap");
-  }
   if (tileData.isClock || tileData.isYarn || tileData.isCassette) {
     tile.classList.add("bonus-tile");
   }
@@ -1609,8 +1595,6 @@ function createTileButton(index) {
         ? "tile-asset tile-asset-cassette"
         : "tile-asset tile-asset-bonus"
     }" src="${tileData.imageSrc}" alt="" />`
-    : tileData.isEmpty
-      ? ""
     : `<span class="emoji">${tileData.emoji}</span>`;
 
   tile.addEventListener("click", () => {
@@ -1842,6 +1826,16 @@ function updateLanguageToggle() {
   });
 }
 
+function renderSimulatedStartButtons() {
+  if (!simulatedStartList) return;
+
+  simulatedStartList.innerHTML = SIMULATED_START_ROUNDS.map(roundNumber => `
+    <button class="simulated-start-btn" type="button" data-round="${roundNumber}">
+      ${copy("jumpToLevel", roundNumber)}
+    </button>
+  `).join("");
+}
+
 function handleLanguageToggleClick(event) {
   const button = event.target.closest(".language-toggle-btn");
   if (!button || button.dataset.lang === currentLanguage) {
@@ -1861,7 +1855,7 @@ function updateLanguageUI() {
   playBtn.textContent = copy("startPlaying");
   clearCacheBtn.textContent = copy("clearCache");
   startBtn.textContent = copy("startRescuingCats");
-  renderCheckpointButtons();
+  renderSimulatedStartButtons();
   trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
   trapOfferDismissBtn.textContent = copy("dismiss");
   nextBtn.textContent = copy("nextRound");
@@ -1986,7 +1980,6 @@ function scheduleMoleRepeatCheck() {
 
     moleEventTriggeredThisRound = false;
     moleAppears = Math.max(moleAppears, GAME_CONFIG.moleTriggerThreshold);
-    showIdleMoleRunner();
   }, GAME_CONFIG.moleRepeatDelayMs);
 }
 
@@ -2019,17 +2012,6 @@ function startTimer() {
       roundCountdownPlayed = true;
       stopAudioPlayer(countdownPlayer);
       countdownPlayer = playTrack("countdown", { volume: 0.95 });
-    }
-
-    if (
-      activeTrap &&
-      round >= GAME_CONFIG.moleVisibleRound &&
-      !moleEventTriggeredThisRound &&
-      !moleSwapInProgress &&
-      doesRunnerOverlapTrap()
-    ) {
-      triggerPatrolTrapCatch();
-      return;
     }
 
     if (
@@ -2174,7 +2156,7 @@ function getMoleTileMetrics(tileIndex) {
 
 function getMoleTargetIndexes(wantCat) {
   return tiles.reduce((indexes, tile, index) => {
-    if (!tile || tile.state !== "idle" || tile.isEmpty || moleUsedTileIndexes.has(index)) {
+    if (!tile || tile.state !== "idle" || moleUsedTileIndexes.has(index)) {
       return indexes;
     }
 
@@ -2205,7 +2187,6 @@ function pickMoleTargetIndex() {
 }
 
 function placeMoleRunnerAtTile(metrics) {
-  hideDirtStrip(true);
   moleRunner.classList.remove("idle", "entering", "shaking", "exiting", "tappable", "hit", "hit-exit");
   moleRunner.classList.add("show");
   moleRunner.style.transition = "none";
@@ -2306,53 +2287,14 @@ function isMoleAttackStillActive(tileIndex) {
   return moleSwapInProgress && !reviewInProgress && !gameOver && moleActiveTileIndex === tileIndex;
 }
 
-function updateDirtStripLayout() {
-  const wrapRect = boardWrapEl.getBoundingClientRect();
-  const boardRect = boardEl.getBoundingClientRect();
-  const stripWidth = boardRect.width + 20;
-  const stripHeight = clamp(boardRect.height * 0.085, 24, 40);
-  const stripX = boardRect.left - wrapRect.left - 10;
-  const stripY = boardRect.bottom - wrapRect.top - stripHeight;
-
-  dirtStrip.style.setProperty("--dirt-x", `${stripX}px`);
-  dirtStrip.style.setProperty("--dirt-y", `${stripY}px`);
-  dirtStrip.style.setProperty("--dirt-width", `${stripWidth}px`);
-  dirtStrip.style.setProperty("--dirt-height", `${stripHeight}px`);
-}
-
-function showDirtStrip() {
-  updateDirtStripLayout();
-  dirtStrip.style.opacity = "";
-  dirtStrip.style.transform = "";
-  dirtStrip.classList.add("show");
-}
-
-function hideDirtStrip(immediate = false) {
-  dirtStrip.classList.remove("show");
-
-  if (immediate) {
-    dirtStrip.style.opacity = "0";
-    dirtStrip.style.transform = "translate(var(--dirt-x, 0), var(--dirt-y, 0px))";
-  }
-}
-
 function setTrapRunnerTarget({ x, y, size }) {
   trapRunner.style.setProperty("--trap-size", `${size}px`);
   trapRunner.style.setProperty("--trap-x", `${x}px`);
   trapRunner.style.setProperty("--trap-y", `${y}px`);
 }
 
-function setMoleRunnerPatrol({ startX, endX, y, size }) {
-  moleRunner.style.setProperty("--mole-size", `${size}px`);
-  moleRunner.style.setProperty("--mole-patrol-start", `${startX}px`);
-  moleRunner.style.setProperty("--mole-patrol-end", `${endX}px`);
-  moleRunner.style.setProperty("--mole-y", `${y}px`);
-  moleRunner.style.setProperty("--mole-patrol-duration", `${GAME_CONFIG.molePatrolMs}ms`);
-}
-
 function hideMoleRunner(immediate = false) {
   moleRunner.classList.remove("show", "idle", "entering", "shaking", "exiting", "tappable", "hit", "hit-exit");
-  hideDirtStrip(immediate);
 
   if (immediate) {
     moleRunner.style.transition = "none";
@@ -2373,19 +2315,6 @@ function hideTrapRunner(immediate = false) {
   }
 }
 
-function getIdleMoleRunnerMetrics() {
-  const wrapRect = boardWrapEl.getBoundingClientRect();
-  const boardRect = boardEl.getBoundingClientRect();
-  const firstTileEl = boardEl.children[0];
-  const tileWidth = firstTileEl ? firstTileEl.getBoundingClientRect().width : boardRect.width / Math.max(currentCols, 1);
-  const size = clamp(tileWidth * 1.18, 46, 88);
-  const startX = boardRect.left - wrapRect.left - size * 0.08;
-  const endX = boardRect.right - wrapRect.left - size * 0.92;
-  const y = Math.max(6, size * 0.08);
-
-  return { startX, endX, y, size };
-}
-
 function getTrapRunnerMetrics(columnIndex) {
   const columnIndexes = getColumnIndexes(columnIndex);
   const bottomTileIndex = columnIndexes[columnIndexes.length - 1];
@@ -2404,82 +2333,6 @@ function getTrapRunnerMetrics(columnIndex) {
 
 function getCenterColumnIndex() {
   return Math.floor(currentCols / 2);
-}
-
-function getCurrentMoleRunnerMetrics() {
-  const wrapRect = boardWrapEl.getBoundingClientRect();
-  const runnerRect = moleRunner.getBoundingClientRect();
-
-  if (!runnerRect.width || !runnerRect.height) return null;
-
-  const baseTop = wrapRect.top + wrapRect.height - runnerRect.height;
-  return {
-    x: runnerRect.left - wrapRect.left,
-    y: runnerRect.top - baseTop,
-    size: runnerRect.width
-  };
-}
-
-function doesRunnerOverlapTrap() {
-  if (!activeTrap || moleRunner.style.opacity === "0" || trapRunner.style.opacity === "0") {
-    return false;
-  }
-
-  const moleRect = moleRunner.getBoundingClientRect();
-  const trapRect = trapRunner.getBoundingClientRect();
-
-  if (!moleRect.width || !moleRect.height || !trapRect.width || !trapRect.height) {
-    return false;
-  }
-
-  const overlapWidth = Math.min(moleRect.right, trapRect.right) - Math.max(moleRect.left, trapRect.left);
-  const overlapHeight = Math.min(moleRect.bottom, trapRect.bottom) - Math.max(moleRect.top, trapRect.top);
-
-  return overlapWidth > 10 && overlapHeight > 10;
-}
-
-async function triggerPatrolTrapCatch() {
-  if (!activeTrap || moleSwapInProgress || reviewInProgress || remainingTime <= 0) {
-    return;
-  }
-
-  moleSwapInProgress = true;
-
-  const moleMetrics = getCurrentMoleRunnerMetrics() || getMoleRunnerMetrics(activeTrap.col);
-  const trapped = await triggerTrapCatch(moleMetrics);
-  moleSwapInProgress = false;
-
-  if (trapped) {
-    moleEventTriggeredThisRound = true;
-  } else {
-    moleEventTriggeredThisRound = false;
-    showIdleMoleRunner();
-  }
-
-  if (trapped && (pendingReviewAfterMole || remainingTime <= 0)) {
-    pendingReviewAfterMole = false;
-    lockBoard();
-    showTimeoutAndReview();
-  }
-}
-
-function showIdleMoleRunner() {
-  if (round < GAME_CONFIG.moleVisibleRound || moleSwapInProgress || gameOver) {
-    hideMoleRunner(true);
-    return;
-  }
-
-  const metrics = getIdleMoleRunnerMetrics();
-  showDirtStrip();
-  setMoleRunnerPatrol(metrics);
-  moleRunner.classList.remove("entering", "shaking", "exiting", "tappable");
-  moleRunner.classList.add("show", "idle");
-  moleRunner.style.left = "";
-  moleRunner.style.bottom = "";
-  moleRunner.style.width = "";
-  moleRunner.style.transition = "";
-  moleRunner.style.opacity = "1";
-  moleRunner.style.transform = "";
 }
 
 async function deployTrapForRound() {
@@ -3352,9 +3205,6 @@ async function beginRound() {
   timeoutFlash.classList.remove("show");
   currentRoundResultSummary = null;
   currentRoundScore = 0;
-  if (CHECKPOINT_ROUNDS.includes(round)) {
-    saveCheckpointSnapshot(round);
-  }
   resultBreakdown.innerHTML = "";
   resultBreakdown.classList.add("hidden");
   updateResultTitleAppearance({ perfect: false });
@@ -3367,7 +3217,6 @@ async function beginRound() {
   flushPendingUiUnlockAnimations();
   playRoundStartSound();
   await deployTrapForRound();
-  showIdleMoleRunner();
   startTimer();
 }
 
@@ -3399,15 +3248,15 @@ playBtn.addEventListener("click", () => {
   showIntroScreen();
 });
 
-checkpointList.addEventListener("click", event => {
-  const button = event.target.closest(".checkpoint-btn");
+simulatedStartList?.addEventListener("click", event => {
+  const button = event.target.closest(".simulated-start-btn");
   if (!button) return;
 
-  const checkpointRound = Number(button.dataset.checkpointRound);
-  const snapshot = getCheckpointSnapshot(checkpointRound);
-  if (!applyCheckpointSnapshot(snapshot)) return;
+  const simulatedRound = Number(button.dataset.round);
+  if (!SIMULATED_START_ROUNDS.includes(simulatedRound)) return;
 
   ensureAudio();
+  applySimulatedStartState(simulatedRound);
   beginRound();
 });
 
