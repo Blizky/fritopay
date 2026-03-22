@@ -2187,8 +2187,8 @@ function pickMoleTargetIndex() {
 }
 
 function placeMoleRunnerAtTile(metrics) {
-  moleRunner.classList.remove("idle", "entering", "shaking", "exiting", "tappable", "hit", "hit-exit");
-  moleRunner.classList.add("show");
+  moleRunner.classList.remove("idle", "entering", "shaking", "exiting", "tappable", "attackable", "hit", "hit-exit");
+  moleRunner.classList.add("show", "attackable");
   moleRunner.style.transition = "none";
   moleRunner.style.left = `${metrics.left}px`;
   moleRunner.style.bottom = `${metrics.bottom}px`;
@@ -2241,7 +2241,7 @@ function resetActiveMoleAttack() {
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
   moleAttackTapped = false;
-  moleRunner.classList.remove("tappable", "hit", "hit-exit");
+  moleRunner.classList.remove("tappable", "attackable", "hit", "hit-exit");
 }
 
 function finishMoleAttack({ scheduleRepeat = true } = {}) {
@@ -2260,10 +2260,12 @@ function finishMoleAttack({ scheduleRepeat = true } = {}) {
 }
 
 async function animateMoleRunnerDown({ hit = false } = {}) {
-  moleRunner.classList.remove("tappable");
+  moleRunner.classList.remove("tappable", "attackable");
 
   if (hit) {
     moleRunner.style.transition = "none";
+    moleRunner.style.opacity = "1";
+    moleRunner.style.transform = "translateY(0%) scaleX(1)";
     moleRunner.classList.remove("hit-exit");
     moleRunner.classList.add("hit");
     await wait(GAME_CONFIG.moleHitImpactMs);
@@ -2285,6 +2287,39 @@ async function animateMoleRunnerDown({ hit = false } = {}) {
 
 function isMoleAttackStillActive(tileIndex) {
   return moleSwapInProgress && !reviewInProgress && !gameOver && moleActiveTileIndex === tileIndex;
+}
+
+function waitForMoleAttackPhase(tileIndex, durationMs) {
+  return new Promise(resolve => {
+    const startedAt = performance.now();
+
+    function tick(now) {
+      if (!isMoleAttackStillActive(tileIndex)) {
+        resolve("stopped");
+        return;
+      }
+
+      if (moleAttackTapped) {
+        resolve("hit");
+        return;
+      }
+
+      if (now - startedAt >= durationMs) {
+        resolve("elapsed");
+        return;
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  });
+}
+
+async function resolveMoleHit(tileIndex) {
+  markMoleHit(tileIndex);
+  await animateMoleRunnerDown({ hit: true });
+  finishMoleAttack();
 }
 
 function setTrapRunnerTarget({ x, y, size }) {
@@ -2458,49 +2493,52 @@ async function triggerMoleTileAttack() {
   moleRunner.style.transition = `transform ${GAME_CONFIG.molePopupRiseMs}ms ease`;
   moleRunner.style.transform = "translateY(0%) scaleX(1)";
 
-  await wait(GAME_CONFIG.molePopupRiseMs);
-  if (!isMoleAttackStillActive(tileIndex)) return;
-
-  await wait(GAME_CONFIG.molePopupPauseMs);
-  if (!isMoleAttackStillActive(tileIndex)) return;
-
-  if (moleAttackTapped) {
-    markMoleHit(tileIndex);
-    await animateMoleRunnerDown({ hit: true });
-    finishMoleAttack();
+  let phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.molePopupRiseMs);
+  if (phaseResult === "hit") {
+    await resolveMoleHit(tileIndex);
     return;
   }
+  if (phaseResult !== "elapsed") return;
+
+  phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.molePopupPauseMs);
+  if (phaseResult === "hit") {
+    await resolveMoleHit(tileIndex);
+    return;
+  }
+  if (phaseResult !== "elapsed") return;
 
   moleRunner.style.transition = "transform 120ms ease";
   moleRunner.style.transform = "translateY(0%) scaleX(-1)";
-  await wait(120);
-  if (!isMoleAttackStillActive(tileIndex)) return;
-
-  await wait(GAME_CONFIG.molePopupTurnPauseMs);
-  if (!isMoleAttackStillActive(tileIndex)) return;
-
-  if (moleAttackTapped) {
-    markMoleHit(tileIndex);
-    await animateMoleRunnerDown({ hit: true });
-    finishMoleAttack();
+  phaseResult = await waitForMoleAttackPhase(tileIndex, 120);
+  if (phaseResult === "hit") {
+    await resolveMoleHit(tileIndex);
     return;
   }
+  if (phaseResult !== "elapsed") return;
+
+  phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.molePopupTurnPauseMs);
+  if (phaseResult === "hit") {
+    await resolveMoleHit(tileIndex);
+    return;
+  }
+  if (phaseResult !== "elapsed") return;
 
   moleRunner.style.transition = "transform 120ms ease";
   moleRunner.style.transform = "translateY(0%) scaleX(1)";
-  await wait(120);
-  if (!isMoleAttackStillActive(tileIndex)) return;
-
-  moleRunner.classList.add("tappable");
-  await wait(GAME_CONFIG.moleTapWindowMs);
-  if (!isMoleAttackStillActive(tileIndex)) return;
-
-  if (moleAttackTapped) {
-    markMoleHit(tileIndex);
-    await animateMoleRunnerDown({ hit: true });
-    finishMoleAttack();
+  phaseResult = await waitForMoleAttackPhase(tileIndex, 120);
+  if (phaseResult === "hit") {
+    await resolveMoleHit(tileIndex);
     return;
   }
+  if (phaseResult !== "elapsed") return;
+
+  moleRunner.classList.add("tappable");
+  phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.moleTapWindowMs);
+  if (phaseResult === "hit") {
+    await resolveMoleHit(tileIndex);
+    return;
+  }
+  if (phaseResult !== "elapsed") return;
 
   if (moleAttackTargetIsCat) {
     stealCatTile(tileIndex);
@@ -3234,7 +3272,7 @@ function initGame() {
 }
 
 function handleMoleRunnerWhack(event) {
-  if (!moleSwapInProgress || moleActiveTileIndex === -1 || !moleRunner.classList.contains("tappable")) {
+  if (!moleSwapInProgress || moleActiveTileIndex === -1 || !moleRunner.classList.contains("attackable")) {
     return;
   }
 

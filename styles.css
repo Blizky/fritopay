@@ -269,6 +269,7 @@ body {
   opacity: 1;
 }
 
+.mole-runner.attackable,
 .mole-runner.tappable {
   pointer-events: auto !important;
   touch-action: manipulation;
