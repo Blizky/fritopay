@@ -71,12 +71,6 @@ const GAME_CONFIG = {
   bonusHintHalfTimeThroughRound: 10,
   // Rounds up to this one start bonus glow at 25% remaining time.
   bonusHintQuarterTimeThroughRound: 20,
-  // How long the trap reveal takes at the start of a round.
-  trapRevealMs: 380,
-  // How long the trap and mole shake together when the trap catches the mole.
-  trapCatchShakeMs: 300,
-  // How long the trap takes to fall away after catching the mole.
-  trapExitMs: 220,
   // Missed cats start removing time from this round onward.
   missedCatPenaltyStartsAtRound: 1,
   // Number of missed or canceled cats that count as one time penalty step.
@@ -107,20 +101,12 @@ const GAME_CONFIG = {
   moleEarliestRound: 5,
   // Chance that the mole appears once during rounds 5 through 9.
   moleRound5To9Chance: 0.75,
-  // Chance of one extra mole appearance after the first one during rounds 5 through 9.
-  moleRound5To9RepeatChance: 0.2,
   // Chance that the mole appears once during rounds 10 through 14.
   moleRound10To14Chance: 0.8,
-  // Chance of one extra mole appearance after the first one during rounds 10 through 14.
-  moleRound10To14RepeatChance: 0.4,
   // Chance that the mole appears once during round 15 and beyond.
   moleRound15PlusChance: 0.9,
-  // Chance of one extra mole appearance after the first one during round 15 and beyond.
-  moleRound15PlusRepeatChance: 0.6,
   // Wait this long after a mole attack before it can return in the same round.
-  moleRepeatDelayMs: 3000,
-  // Require more than this much time left before a repeat mole attack can arm.
-  moleRepeatMinimumTimeSeconds: 5,
+  moleRepeatDelayMs: 500,
   // Point in the round when the mole check happens.
   moleTriggerAtTimeRatio: 0.5,
   // Start making the mole trigger earlier from this round onward.
@@ -170,6 +156,7 @@ const AUDIO_TRACKS = {
   startScreen: "sound/start_screen.mp3",
   start: "sound/start.mp3",
   music: "sound/music.mp3",
+  moleMusic: "sound/music/mole.mp3",
   countdown: "sound/countdown.mp3",
   gameOver: "sound/game_over.mp3",
   laugh: "sound/laugh.mp3",
@@ -177,7 +164,11 @@ const AUDIO_TRACKS = {
   error: "sound/error.mp3",
   shine: "sound/shine.mp3",
   trap: "sound/trap.mp3",
-  rocks: "sound/rocks.mp3"
+  trapFail: "sound/trap_fail.mp3",
+  rocks: "sound/rocks.mp3",
+  molePopIn: "sound/mole_popin.mp3",
+  moleHit: "sound/pop2.mp3",
+  moleSteal: "sound/smash.mp3"
 };
 
 const CASSETTE_MUSIC_TRACKS = Array.from(
@@ -227,14 +218,13 @@ const timerLabel = document.getElementById("timerLabel");
 const targetLabel = document.getElementById("targetLabel");
 const roundLabel = document.getElementById("roundLabel");
 const scoreLabel = document.getElementById("scoreLabel");
+const trapInventoryEl = document.getElementById("trapInventory");
 const bottomExitBtn = document.getElementById("bottomExitBtn");
 const pickedLabel = document.getElementById("pickedLabel");
 const languageToggle = document.getElementById("languageToggle");
 const muteToggle = document.getElementById("muteToggle");
 const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
-const trapRunner = document.getElementById("trapRunner");
-const trapOutcomeSplash = document.getElementById("trapOutcomeSplash");
 const simulatedStartList = document.getElementById("simulatedStartList");
 
 const landingPanel = document.getElementById("landingPanel");
@@ -301,13 +291,13 @@ let moleEventTriggeredThisRound = false;
 let moleSwapInProgress = false;
 let pendingReviewAfterMole = false;
 let moleAttacksTriggeredThisRound = 0;
+let moleEventBurstActive = false;
 let moleCurrentAttackIsPreview = false;
 let moleActiveTileIndex = -1;
 let moleAttackTargetIsCat = false;
 let moleAttackTapped = false;
 let moleUsedTileIndexes = new Set();
-let trapPurchasedForNextRound = null;
-let activeTrap = null;
+let trapInventory = [];
 let bonusClockEarnedThisRound = false;
 let clockTilesSelectedThisRound = 0;
 let cassetteTilesSelectedThisRound = 0;
@@ -343,11 +333,11 @@ let moleRepeatTimeoutId = null;
 let roundCountdownPlayed = false;
 let roundIntroPlayer = null;
 let backgroundMusicPlayer = null;
+let moleMusicPlayer = null;
 let countdownPlayer = null;
 let roundAudioToken = 0;
 let homeScreenPlayer = null;
 let appAudioPausedByVisibility = false;
-let trapOutcomeSplashTimeoutId = null;
 const activeAudioPlayers = new Set();
 const pendingUiUnlockAnimations = new Set();
 const LANGUAGE_STORAGE_KEY = "fritopay-language";
@@ -659,11 +649,12 @@ function buildSimulatedStartState(startRound) {
     muteUnlocked: false,
     exitUnlocked: false,
     scoreboardUnlocked: false,
-    cassetteCount: 0,
-    currentTrapTierIndex: 0,
-    diamondTrapFailed: false,
-    nextRoundTime: GAME_CONFIG.startingTimeSeconds,
-    nextRoundCats: GAME_CONFIG.startingCats
+  cassetteCount: 0,
+  currentTrapTierIndex: 0,
+  diamondTrapFailed: false,
+  trapInventory: [],
+  nextRoundTime: GAME_CONFIG.startingTimeSeconds,
+  nextRoundCats: GAME_CONFIG.startingCats
   };
 
   for (let completedRound = GAME_CONFIG.startingRound; completedRound < safeStartRound; completedRound++) {
@@ -709,11 +700,10 @@ function applySimulatedStartState(startRound) {
   cassetteCount = simulatedState.cassetteCount;
   currentTrapTierIndex = simulatedState.currentTrapTierIndex;
   diamondTrapFailed = simulatedState.diamondTrapFailed;
+  trapInventory = [...simulatedState.trapInventory];
   nextRoundTime = simulatedState.nextRoundTime;
   nextRoundCats = simulatedState.nextRoundCats;
   currentRoundResultSummary = null;
-  trapPurchasedForNextRound = null;
-  activeTrap = null;
   currentSpecialOfferOptions = [];
   currentSpecialOfferKind = "trap";
   currentSpecialOfferSellerImage = "images/racoon.png";
@@ -735,6 +725,7 @@ function applySimulatedStartState(startRound) {
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
   moleAttacksTriggeredThisRound = 0;
+  moleEventBurstActive = false;
   moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
@@ -745,8 +736,8 @@ function applySimulatedStartState(startRound) {
   currentRoundMissedCats = 0;
   hideTrapOffer();
   hideMoleRunner(true);
-  hideTrapRunner(true);
   applyBoardLayout(round);
+  renderTrapInventory();
 }
 
 async function clearBrowserCaches() {
@@ -1157,6 +1148,38 @@ function getNextRoundMusicTrackPath() {
   ];
 }
 
+function playBackgroundMusicTrack(trackPath = getNextRoundMusicTrackPath()) {
+  stopAudioPlayer(backgroundMusicPlayer);
+  backgroundMusicPlayer = playAudioSource(trackPath, {
+    loop: true,
+    volume: 0.75
+  });
+  return backgroundMusicPlayer;
+}
+
+function startMoleEventMusic() {
+  if (isMuted || moleMusicPlayer) return moleMusicPlayer;
+
+  stopAudioPlayer(backgroundMusicPlayer);
+  backgroundMusicPlayer = null;
+  moleMusicPlayer = playTrack("moleMusic", {
+    loop: true,
+    volume: 0.78
+  });
+  return moleMusicPlayer;
+}
+
+function restoreRoundBackgroundMusic() {
+  stopAudioPlayer(moleMusicPlayer);
+  moleMusicPlayer = null;
+
+  if (isMuted || isPreGameScreenVisible() || resultPanel.classList.contains("show") || gameOver || remainingTime <= 0) {
+    return null;
+  }
+
+  return playBackgroundMusicTrack();
+}
+
 function stopAllAudioPlayers() {
   [...activeAudioPlayers].forEach(stopAudioPlayer);
 }
@@ -1166,9 +1189,11 @@ function stopRoundSoundtrack() {
   roundCountdownPlayed = false;
   stopAudioPlayer(roundIntroPlayer);
   stopAudioPlayer(backgroundMusicPlayer);
+  stopAudioPlayer(moleMusicPlayer);
   stopAudioPlayer(countdownPlayer);
   roundIntroPlayer = null;
   backgroundMusicPlayer = null;
+  moleMusicPlayer = null;
   countdownPlayer = null;
 }
 
@@ -1196,11 +1221,7 @@ function playHomeScreenAudio() {
 function playRoundIntroAndMusic() {
   stopHomeScreenAudio();
   stopRoundSoundtrack();
-  const trackPath = getNextRoundMusicTrackPath();
-  backgroundMusicPlayer = playAudioSource(trackPath, {
-    loop: true,
-    volume: 0.75
-  });
+  playBackgroundMusicTrack();
 }
 
 function beep(freq, duration, type = "sine", volume = 0.04, delay = 0) {
@@ -1270,6 +1291,7 @@ function applyMuteState() {
     stopAllAudioPlayers();
     roundIntroPlayer = null;
     backgroundMusicPlayer = null;
+    moleMusicPlayer = null;
     countdownPlayer = null;
     homeScreenPlayer = null;
     return;
@@ -1278,7 +1300,11 @@ function applyMuteState() {
   if (isPreGameScreenVisible()) {
     playHomeScreenAudio();
   } else if (!resultPanel.classList.contains("show") && remainingTime > 0 && !gameOver) {
-    playRoundIntroAndMusic();
+    if (moleSwapInProgress || moleEventBurstActive || moleMusicPlayer) {
+      startMoleEventMusic();
+    } else {
+      playRoundIntroAndMusic();
+    }
     if (!roundCountdownPlayed && roundTime > 3 && remainingTime <= 3) {
       roundCountdownPlayed = true;
       countdownPlayer = playTrack("countdown", { volume: 0.95 });
@@ -1352,25 +1378,6 @@ function playNullifySound() {
 
 function playRoundStartSound() {
   playRoundIntroAndMusic();
-}
-
-function showTrapOutcomeSplash(message) {
-  if (!trapOutcomeSplash || !message) return;
-
-  if (trapOutcomeSplashTimeoutId !== null) {
-    clearTimeout(trapOutcomeSplashTimeoutId);
-    trapOutcomeSplashTimeoutId = null;
-  }
-
-  trapOutcomeSplash.textContent = message;
-  trapOutcomeSplash.classList.remove("show");
-  void trapOutcomeSplash.offsetWidth;
-  trapOutcomeSplash.classList.add("show");
-
-  trapOutcomeSplashTimeoutId = setTimeout(() => {
-    trapOutcomeSplash.classList.remove("show");
-    trapOutcomeSplashTimeoutId = null;
-  }, 500);
 }
 
 function playGameOverSound() {
@@ -1704,13 +1711,13 @@ function resetGameState() {
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
   moleAttacksTriggeredThisRound = 0;
+  moleEventBurstActive = false;
   moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
   moleAttackTapped = false;
   moleUsedTileIndexes.clear();
-  trapPurchasedForNextRound = null;
-  activeTrap = null;
+  trapInventory = [];
   bonusClockEarnedThisRound = false;
   clockTilesSelectedThisRound = 0;
   cassetteTilesSelectedThisRound = 0;
@@ -1730,12 +1737,12 @@ function resetGameState() {
   currentRivalName = "";
   currentRivalScore = 0;
   hideMoleRunner(true);
-  hideTrapRunner(true);
   moleCatsLostThisRound = 0;
   currentRoundRescuableCats = targetCats;
   currentRoundMissedCats = 0;
   hideTrapOffer();
   applyBoardLayout(round);
+  renderTrapInventory();
 }
 
 function getScaledReviewStepDelay() {
@@ -1807,6 +1814,21 @@ function renderSimulatedStartButtons() {
   `).join("");
 }
 
+function renderTrapInventory() {
+  if (!trapInventoryEl) return;
+
+  trapInventoryEl.innerHTML = trapInventory.map(tierId => {
+    const tier = getTrapTierById(tierId);
+    return `
+      <div class="trap-inventory-item" aria-hidden="true">
+        <img src="${tier.image}" alt="" />
+      </div>
+    `;
+  }).join("");
+
+  trapInventoryEl.classList.toggle("hidden", trapInventory.length === 0);
+}
+
 function handleLanguageToggleClick(event) {
   const button = event.target.closest(".language-toggle-btn");
   if (!button || button.dataset.lang === currentLanguage) {
@@ -1827,6 +1849,7 @@ function updateLanguageUI() {
   clearCacheBtn.textContent = copy("clearCache");
   startBtn.textContent = copy("startRescuingCats");
   renderSimulatedStartButtons();
+  renderTrapInventory();
   trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
   trapOfferDismissBtn.textContent = copy("dismiss");
   nextBtn.textContent = copy("nextRound");
@@ -1893,39 +1916,24 @@ function showIntroScreen() {
   playHomeScreenAudio();
 }
 
-function getMoleRoundChances(roundNumber = round) {
+function getMoleRoundFirstChance(roundNumber = round) {
   if (roundNumber === GAME_CONFIG.molePreviewRound) {
-    return {
-      firstChance: 1,
-      secondChance: 0
-    };
+    return 1;
   }
 
   if (roundNumber >= 15) {
-    return {
-      firstChance: GAME_CONFIG.moleRound15PlusChance,
-      secondChance: GAME_CONFIG.moleRound15PlusRepeatChance
-    };
+    return GAME_CONFIG.moleRound15PlusChance;
   }
 
   if (roundNumber >= 10) {
-    return {
-      firstChance: GAME_CONFIG.moleRound10To14Chance,
-      secondChance: GAME_CONFIG.moleRound10To14RepeatChance
-    };
+    return GAME_CONFIG.moleRound10To14Chance;
   }
 
   if (roundNumber >= 5) {
-    return {
-      firstChance: GAME_CONFIG.moleRound5To9Chance,
-      secondChance: GAME_CONFIG.moleRound5To9RepeatChance
-    };
+    return GAME_CONFIG.moleRound5To9Chance;
   }
 
-  return {
-    firstChance: 0,
-    secondChance: 0
-  };
+  return 0;
 }
 
 function getMoleTriggerRatio() {
@@ -1946,7 +1954,7 @@ function getMoleTriggerRatio() {
 function scheduleMoleRepeatCheck() {
   clearMoleRepeatTimeout();
 
-  if (moleAttacksTriggeredThisRound !== 1) {
+  if (!moleEventBurstActive || moleCurrentAttackIsPreview) {
     return;
   }
 
@@ -1958,23 +1966,20 @@ function scheduleMoleRepeatCheck() {
       gameOver ||
       moleSwapInProgress ||
       pendingReviewAfterMole ||
-      remainingTime <= GAME_CONFIG.moleRepeatMinimumTimeSeconds
+      remainingTime <= 0
     ) {
       return;
     }
 
-    if (Math.random() > getMoleRoundChances().secondChance) {
-      return;
-    }
-
-    moleEventTriggeredThisRound = false;
+    triggerMoleTileAttack();
   }, GAME_CONFIG.moleRepeatDelayMs);
 }
 
 function prepareRoundHazards() {
   clearMoleRepeatTimeout();
-  const moleFirstAttackWillHappen = Math.random() < getMoleRoundChances(round).firstChance;
+  const moleFirstAttackWillHappen = Math.random() < getMoleRoundFirstChance(round);
   moleAttacksTriggeredThisRound = 0;
+  moleEventBurstActive = false;
   moleCurrentAttackIsPreview = false;
   moleEventTriggeredThisRound = !moleFirstAttackWillHappen;
   moleSwapInProgress = false;
@@ -2027,8 +2032,6 @@ function startTimer() {
 async function showTimeoutAndReview() {
   clearMoleRepeatTimeout();
   hideMoleRunner(true);
-  hideTrapRunner(true);
-  activeTrap = null;
   timeoutFlash.classList.remove("show");
   void timeoutFlash.offsetWidth;
   timeoutFlash.classList.add("show");
@@ -2132,6 +2135,43 @@ function getMoleTileMetrics(tileIndex) {
   };
 }
 
+function getCurrentMoleBurstMetrics() {
+  const left = parseFloat(moleRunner.style.left);
+  const bottom = parseFloat(moleRunner.style.bottom);
+  const size = parseFloat(moleRunner.style.width);
+
+  if (!Number.isFinite(left) || !Number.isFinite(bottom) || !Number.isFinite(size)) {
+    return null;
+  }
+
+  return { left, bottom, size };
+}
+
+function createMoleDirtBurst(metrics, direction = "out") {
+  if (!metrics) return;
+
+  const burst = document.createElement("div");
+  burst.className = `mole-dirt-burst mole-dirt-burst-${direction}`;
+  burst.style.left = `${metrics.left + metrics.size / 2}px`;
+  burst.style.bottom = `${Math.max(0, metrics.bottom + metrics.size * 0.08)}px`;
+  burst.style.setProperty("--mole-dirt-size", `${Math.max(18, metrics.size * 0.7)}px`);
+
+  const pieceCount = 9;
+  for (let index = 0; index < pieceCount; index++) {
+    const piece = document.createElement("span");
+    piece.className = "mole-dirt-piece";
+    piece.style.setProperty("--dirt-x", `${randomIntBetween(-32, 32)}px`);
+    piece.style.setProperty("--dirt-y", `${direction === "in" ? randomIntBetween(10, 26) : randomIntBetween(-26, -8)}px`);
+    piece.style.setProperty("--dirt-rot", `${randomIntBetween(-90, 90)}deg`);
+    piece.style.setProperty("--dirt-delay", `${index * 18}ms`);
+    piece.style.setProperty("--dirt-size", `${randomIntBetween(5, 11)}px`);
+    burst.appendChild(piece);
+  }
+
+  boardWrapEl.appendChild(burst);
+  setTimeout(() => burst.remove(), 520);
+}
+
 function getMoleTargetIndexes(wantCat) {
   return tiles.reduce((indexes, tile, index) => {
     if (!tile || tile.state !== "idle" || moleUsedTileIndexes.has(index)) {
@@ -2173,6 +2213,8 @@ function placeMoleRunnerAtTile(metrics) {
   moleRunner.style.width = `${metrics.size}px`;
   moleRunner.style.opacity = "1";
   moleRunner.style.transform = "translateY(62%) scaleX(1)";
+  playTrack("molePopIn", { volume: 0.9 });
+  createMoleDirtBurst(metrics, "in");
 }
 
 function markMoleHit(tileIndex) {
@@ -2193,6 +2235,47 @@ function showMoleStink(tileEl) {
   setTimeout(() => stink.remove(), 950);
 }
 
+function consumeNextTrap() {
+  if (trapInventory.length === 0) {
+    return null;
+  }
+
+  const tierId = trapInventory.shift();
+  renderTrapInventory();
+  return getTrapTierById(tierId);
+}
+
+function showTrapTileEffect(tileIndex, trapTier, succeeded) {
+  const tileEl = boardEl.children[tileIndex];
+  if (!tileEl || !trapTier) return;
+
+  const fx = document.createElement("div");
+  fx.className = `tile-trap-effect ${succeeded ? "success" : "fail"}`;
+  fx.innerHTML = `<img src="${trapTier.image}" alt="" />`;
+  tileEl.appendChild(fx);
+  setTimeout(() => fx.remove(), 460);
+}
+
+async function resolveTrapDefense(tileIndex) {
+  const trapTier = consumeNextTrap();
+  if (!trapTier) {
+    return false;
+  }
+
+  const trapWorked = Math.random() < trapTier.successChance;
+  showTrapTileEffect(tileIndex, trapTier, trapWorked);
+
+  if (trapWorked) {
+    playTrack("trap", { volume: 0.95 });
+    await animateMoleRunnerDown({ hit: true });
+    return true;
+  }
+
+  playTrack("trapFail", { volume: 0.95 });
+  unlockNextTrapTier(trapTier.id);
+  return false;
+}
+
 function stealCatTile(tileIndex) {
   const tile = tiles[tileIndex];
   const tileEl = boardEl.children[tileIndex];
@@ -2204,6 +2287,7 @@ function stealCatTile(tileIndex) {
   tile.selected = false;
   tile.state = "stolen";
   moleCatsLostThisRound += 1;
+  playTrack("moleSteal", { volume: 0.95 });
   tileEl.classList.remove("selected");
   tileEl.classList.add("locked", "mole-shake");
   updatePickedCount();
@@ -2223,9 +2307,14 @@ function resetActiveMoleAttack() {
   moleRunner.classList.remove("tappable", "attackable", "hit", "hit-exit");
 }
 
-function finishMoleAttack({ scheduleRepeat = true } = {}) {
+function finishMoleAttack({ scheduleRepeat = true, endBurst = false } = {}) {
   resetActiveMoleAttack();
   moleSwapInProgress = false;
+
+  if (endBurst) {
+    moleEventBurstActive = false;
+    restoreRoundBackgroundMusic();
+  }
 
   if (scheduleRepeat) {
     scheduleMoleRepeatCheck();
@@ -2239,6 +2328,7 @@ function finishMoleAttack({ scheduleRepeat = true } = {}) {
 }
 
 async function animateMoleRunnerDown({ hit = false } = {}) {
+  createMoleDirtBurst(getCurrentMoleBurstMetrics(), "out");
   moleRunner.classList.remove("tappable", "attackable");
 
   if (hit) {
@@ -2297,14 +2387,12 @@ function waitForMoleAttackPhase(tileIndex, durationMs) {
 
 async function resolveMoleHit(tileIndex) {
   markMoleHit(tileIndex);
+  playTrack("moleHit", { volume: 0.95 });
   await animateMoleRunnerDown({ hit: true });
-  finishMoleAttack();
-}
-
-function setTrapRunnerTarget({ x, y, size }) {
-  trapRunner.style.setProperty("--trap-size", `${size}px`);
-  trapRunner.style.setProperty("--trap-x", `${x}px`);
-  trapRunner.style.setProperty("--trap-y", `${y}px`);
+  finishMoleAttack({
+    scheduleRepeat: moleEventBurstActive,
+    endBurst: !moleEventBurstActive
+  });
 }
 
 function hideMoleRunner(immediate = false) {
@@ -2320,125 +2408,6 @@ function hideMoleRunner(immediate = false) {
   }
 }
 
-function hideTrapRunner(immediate = false) {
-  trapRunner.classList.remove("show", "arming", "trapped", "exiting");
-
-  if (immediate) {
-    trapRunner.style.opacity = "0";
-    trapRunner.style.transform = "translate(-180%, 72px) scale(1.45)";
-  }
-}
-
-function getTrapRunnerMetrics(columnIndex) {
-  const columnIndexes = getColumnIndexes(columnIndex);
-  const bottomTileIndex = columnIndexes[columnIndexes.length - 1];
-  const tileEl = boardEl.children[bottomTileIndex];
-
-  if (!tileEl) return null;
-
-  const wrapRect = boardWrapEl.getBoundingClientRect();
-  const tileRect = tileEl.getBoundingClientRect();
-  const size = clamp(tileRect.width * 1.12, 44, 86);
-  const x = tileRect.left - wrapRect.left + tileRect.width / 2 - size / 2;
-  const y = Math.max(10, size * 0.14);
-
-  return { col: columnIndex, x, y, size };
-}
-
-function getCenterColumnIndex() {
-  return Math.floor(currentCols / 2);
-}
-
-async function deployTrapForRound() {
-  if (!trapPurchasedForNextRound) {
-    activeTrap = null;
-    hideTrapRunner(true);
-    return;
-  }
-
-  const trapTier = getTrapTierById(trapPurchasedForNextRound);
-  trapPurchasedForNextRound = null;
-  const trapCol = getCenterColumnIndex();
-  const trapMetrics = getTrapRunnerMetrics(trapCol);
-
-  if (!trapMetrics) {
-    activeTrap = null;
-    hideTrapRunner(true);
-    return;
-  }
-
-  trapRunner.src = trapTier.image;
-  activeTrap = {
-    ...trapMetrics,
-    tierId: trapTier.id,
-    successChance: trapTier.successChance
-  };
-  setTrapRunnerTarget(trapMetrics);
-  hideTrapRunner(true);
-  void trapRunner.offsetWidth;
-
-  trapRunner.classList.add("show", "arming");
-  trapRunner.style.opacity = "1";
-  trapRunner.style.transform = `translate(${trapMetrics.x}px, ${trapMetrics.y + 84}px) scale(1.45)`;
-  void trapRunner.offsetWidth;
-  trapRunner.style.transform = `translate(${trapMetrics.x}px, ${trapMetrics.y}px) scale(1)`;
-
-  await wait(GAME_CONFIG.trapRevealMs);
-  trapRunner.classList.remove("arming");
-  trapRunner.style.transform = `translate(${trapMetrics.x}px, ${trapMetrics.y}px) scale(1)`;
-}
-
-async function triggerTrapCatch(moleMetrics) {
-  if (!activeTrap || !moleMetrics) return false;
-
-  const trapTier = getTrapTierById(activeTrap.tierId);
-  const trapWorked = Math.random() < trapTier.successChance;
-
-  moleRunner.classList.remove("idle", "entering", "exiting");
-  trapRunner.classList.remove("arming", "exiting", "failing", "trapped");
-  moleRunner.classList.add("show");
-  moleRunner.style.opacity = "1";
-  trapRunner.style.opacity = "1";
-  moleRunner.style.transform = `translate(${activeTrap.x}px, ${activeTrap.y}px) rotate(-3deg)`;
-  trapRunner.style.transform = `translate(${activeTrap.x}px, ${activeTrap.y}px) scale(1)`;
-
-  if (trapWorked) {
-    playTrack("trap", { volume: 0.95 });
-    showTrapOutcomeSplash(copy("moleTrapped"));
-    moleRunner.classList.add("shaking");
-    trapRunner.classList.add("show", "trapped");
-
-    await wait(GAME_CONFIG.trapCatchShakeMs);
-
-    moleRunner.classList.remove("shaking");
-    trapRunner.classList.remove("trapped");
-    moleRunner.classList.add("show", "exiting");
-    trapRunner.classList.add("show", "exiting");
-    moleRunner.style.opacity = "0";
-    trapRunner.style.opacity = "0";
-    moleRunner.style.transform = `translate(${activeTrap.x}px, ${activeTrap.y + 52}px) rotate(6deg)`;
-    trapRunner.style.transform = `translate(${activeTrap.x}px, ${activeTrap.y + 46}px) scale(0.84)`;
-
-    await wait(Math.max(GAME_CONFIG.moleExitMs, GAME_CONFIG.trapExitMs));
-    hideMoleRunner(true);
-    hideTrapRunner(true);
-    activeTrap = null;
-
-    return true;
-  }
-
-  playTrack("error", { volume: 0.95 });
-  showTrapOutcomeSplash(copy("trapFailed"));
-  trapRunner.classList.add("show", "failing");
-  await wait(GAME_CONFIG.trapCatchShakeMs);
-  trapRunner.classList.remove("failing");
-  hideTrapRunner(true);
-  unlockNextTrapTier(trapTier.id);
-  activeTrap = null;
-
-  return false;
-}
-
 function getColumnIndexes(columnIndex) {
   return Array.from({ length: currentRows }, (_, rowIndex) => rowIndex * currentCols + columnIndex);
 }
@@ -2448,12 +2417,16 @@ async function triggerMoleTileAttack() {
   moleSwapInProgress = true;
   moleAttacksTriggeredThisRound += 1;
   moleCurrentAttackIsPreview = round === GAME_CONFIG.molePreviewRound;
-  playTrack("rocks", { volume: 0.95 });
+  moleEventBurstActive = !moleCurrentAttackIsPreview;
+
+  if (!moleMusicPlayer) {
+    startMoleEventMusic();
+  }
 
   const tileIndex = pickMoleTargetIndex();
   if (tileIndex === -1) {
     hideMoleRunner(true);
-    finishMoleAttack({ scheduleRepeat: false });
+    finishMoleAttack({ scheduleRepeat: false, endBurst: true });
     return;
   }
 
@@ -2463,7 +2436,7 @@ async function triggerMoleTileAttack() {
   const tileMetrics = getMoleTileMetrics(tileIndex);
   if (!tileMetrics) {
     hideMoleRunner(true);
-    finishMoleAttack({ scheduleRepeat: false });
+    finishMoleAttack({ scheduleRepeat: false, endBurst: true });
     return;
   }
 
@@ -2520,12 +2493,28 @@ async function triggerMoleTileAttack() {
   if (phaseResult !== "elapsed") return;
 
   if (!moleCurrentAttackIsPreview && moleAttackTargetIsCat) {
+    const trapSavedTile = await resolveTrapDefense(tileIndex);
+
+    if (trapSavedTile) {
+      finishMoleAttack({
+        scheduleRepeat: moleEventBurstActive,
+        endBurst: !moleEventBurstActive
+      });
+      return;
+    }
+
     stealCatTile(tileIndex);
     await wait(GAME_CONFIG.moleStealShakeMs);
+    await animateMoleRunnerDown();
+    finishMoleAttack({ scheduleRepeat: false, endBurst: true });
+    return;
   }
 
   await animateMoleRunnerDown();
-  finishMoleAttack();
+  finishMoleAttack({
+    scheduleRepeat: moleEventBurstActive,
+    endBurst: !moleEventBurstActive
+  });
 }
 
 async function startReview() {
@@ -3190,9 +3179,7 @@ function showResult() {
     resourceSummary.classList.remove("hidden");
     timeNote.textContent = "";
     resultSpecialOfferOptions = getSpecialOfferOptions(round);
-    const shouldForceTimeOffer = resultSpecialOfferOptions.some(option => option.kind === "time");
-
-    shouldRevealOffer = resultSpecialOfferOptions.length > 0 && (!trapPurchasedForNextRound || shouldForceTimeOffer);
+    shouldRevealOffer = resultSpecialOfferOptions.length > 0;
     hideTrapOffer();
     nextBtn.textContent = copy("nextRound");
     nextBtn.classList.remove("hidden");
@@ -3233,7 +3220,6 @@ async function beginRound() {
   updateTopUI();
   flushPendingUiUnlockAnimations();
   playRoundStartSound();
-  await deployTrapForRound();
   startTimer();
 }
 
@@ -3316,7 +3302,7 @@ trapOfferRows.addEventListener("click", event => {
   const buyButton = event.target.closest(".trap-offer-buy");
   if (!buyButton) return;
 
-  if (trapOffer.classList.contains("hidden") || trapPurchasedForNextRound || gameOver) {
+  if (trapOffer.classList.contains("hidden") || gameOver) {
     return;
   }
 
@@ -3369,11 +3355,12 @@ trapOfferRows.addEventListener("click", event => {
     });
     updateBottomExitButton();
   } else {
-    trapPurchasedForNextRound = selectedOption.tierId;
+    trapInventory.push(selectedOption.tierId);
     showPurchasedOfferSummary({
       kind: "trap",
       tierId: selectedOption.tierId
     });
+    renderTrapInventory();
   }
 
   updateSummaryTexts();
