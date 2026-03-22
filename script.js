@@ -106,9 +106,9 @@ const GAME_CONFIG = {
   // Mole meter value at the start of a new game.
   moleStartsAt: 0.0,
   // The mole becomes visible from this round onward.
-  moleVisibleRound: 5,
+  moleVisibleRound: 4,
   // The mole event cannot happen before this round.
-  moleEarliestRound: 6,
+  moleEarliestRound: 4,
   // Lowest random mole meter gain added at the start of a round.
   moleGainMin: 0.16,
   // Highest random mole meter gain added at the start of a round.
@@ -119,13 +119,13 @@ const GAME_CONFIG = {
   moleTriggerThreshold: 1,
   // Meter removed after the mole event fires.
   moleMeterPenaltyOnTrigger: 0.5,
-  // Wait this long after a mole swap before it can return in the same round.
+  // Wait this long after a mole attack before it can return in the same round.
   moleRepeatDelayMs: 3000,
-  // Base chance for the mole to come back after a successful column swap.
+  // Base chance for the mole to come back after a successful attack.
   moleRepeatChanceBase: 0.5,
   // Additional repeat chance added for each round after the first mole round.
   moleRepeatChancePerRound: 0.03,
-  // Require more than this much time left before a repeat mole swap can arm.
+  // Require more than this much time left before a repeat mole attack can arm.
   moleRepeatMinimumTimeSeconds: 5,
   // Do not trigger the mole event when the round has less time than this left.
   moleMinimumTriggerTimeSeconds: 2,
@@ -141,19 +141,21 @@ const GAME_CONFIG = {
   moleEarlierAttackMaxRatio: 0.75,
   // The mole patrol speed while idling at the bottom border.
   molePatrolMs: 4200,
-  // How long the mole takes to align to the target column.
-  moleEnterMs: 180,
-  // How long the mole shakes before the column event starts.
-  moleAlignShakeMs: 300,
-  // Red warning shake duration before the column drops.
-  moleWarningMs: 250,
-  // Time for the old column to drop out.
-  moleDropMs: 200,
-  // Gap pause before the new column falls in.
-  moleGapMs: 200,
-  // Time for the new column to fall into place.
-  moleFallMs: 200,
-  // How long the mole takes to drop away after the swap.
+  // Chance that a mole attack targets a cat tile first.
+  moleCatTargetChance: 0.25,
+  // Time for the mole to pop up over a tile.
+  molePopupRiseMs: 200,
+  // First pause after the mole pops up.
+  molePopupPauseMs: 250,
+  // Second pause after the mole turns around.
+  molePopupTurnPauseMs: 300,
+  // How long the player gets to whack the mole once it is fully up.
+  moleTapWindowMs: 1000,
+  // How long the hit flash and shake stays on the mole before it disappears.
+  moleHitImpactMs: 250,
+  // How long the tile shakes before a cat is marked as stolen.
+  moleStealShakeMs: 200,
+  // How long the mole takes to duck away after an attack.
   moleExitMs: 200
 };
 
@@ -312,6 +314,10 @@ let moleAppears = GAME_CONFIG.moleStartsAt;
 let moleEventTriggeredThisRound = false;
 let moleSwapInProgress = false;
 let pendingReviewAfterMole = false;
+let moleActiveTileIndex = -1;
+let moleAttackTargetIsCat = false;
+let moleAttackTapped = false;
+let moleUsedTileIndexes = new Set();
 let trapPurchasedForNextRound = null;
 let activeTrap = null;
 let bonusClockEarnedThisRound = false;
@@ -766,6 +772,10 @@ function applyCheckpointSnapshot(snapshot) {
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
+  moleActiveTileIndex = -1;
+  moleAttackTargetIsCat = false;
+  moleAttackTapped = false;
+  moleUsedTileIndexes.clear();
   moleCatsLostThisRound = 0;
   currentRoundRescuableCats = targetCats;
   currentRoundMissedCats = 0;
@@ -1609,7 +1619,8 @@ function createTileButton(index) {
       moleSwapInProgress ||
       remainingTime <= 0 ||
       gameOver ||
-      isPreGameScreenVisible()
+      isPreGameScreenVisible() ||
+      tileData.state !== "idle"
     ) {
       return;
     }
@@ -1669,6 +1680,10 @@ function createBoard() {
   cassetteTilesSelectedThisRound = 0;
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
+  moleActiveTileIndex = -1;
+  moleAttackTargetIsCat = false;
+  moleAttackTapped = false;
+  moleUsedTileIndexes.clear();
   moleCatsLostThisRound = 0;
   currentRoundRescuableCats = targetCats;
   currentRoundMissedCats = 0;
@@ -1735,6 +1750,10 @@ function resetGameState() {
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
+  moleActiveTileIndex = -1;
+  moleAttackTargetIsCat = false;
+  moleAttackTapped = false;
+  moleUsedTileIndexes.clear();
   trapPurchasedForNextRound = null;
   activeTrap = null;
   bonusClockEarnedThisRound = false;
@@ -1980,6 +1999,10 @@ function prepareRoundHazards() {
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
+  moleActiveTileIndex = -1;
+  moleAttackTargetIsCat = false;
+  moleAttackTapped = false;
+  moleUsedTileIndexes.clear();
 }
 
 function startTimer() {
@@ -2023,7 +2046,7 @@ function startTimer() {
         );
         moleEventTriggeredThisRound = true;
       } else {
-        triggerMoleColumnSwap();
+        triggerMoleTileAttack();
       }
     }
 
@@ -2132,10 +2155,155 @@ function getMoleRunnerMetrics(columnIndex) {
   return { x, y, size };
 }
 
-function setMoleRunnerTarget({ x, y, size }) {
-  moleRunner.style.setProperty("--mole-size", `${size}px`);
-  moleRunner.style.setProperty("--mole-x", `${x}px`);
-  moleRunner.style.setProperty("--mole-y", `${y}px`);
+function getMoleTileMetrics(tileIndex) {
+  const tileEl = boardEl.children[tileIndex];
+  if (!tileEl) return null;
+
+  const wrapRect = boardWrapEl.getBoundingClientRect();
+  const tileRect = tileEl.getBoundingClientRect();
+  const size = clamp(tileRect.width * 0.9, 42, 82);
+  const left = tileRect.left - wrapRect.left + tileRect.width / 2 - size / 2;
+  const bottom = wrapRect.bottom - tileRect.bottom;
+
+  return {
+    left,
+    bottom: Math.max(0, bottom),
+    size
+  };
+}
+
+function getMoleTargetIndexes(wantCat) {
+  return tiles.reduce((indexes, tile, index) => {
+    if (!tile || tile.state !== "idle" || tile.isEmpty || moleUsedTileIndexes.has(index)) {
+      return indexes;
+    }
+
+    if (Boolean(tile.isCat) === wantCat) {
+      indexes.push(index);
+    }
+
+    return indexes;
+  }, []);
+}
+
+function pickMoleTargetIndex() {
+  const preferCat = Math.random() < GAME_CONFIG.moleCatTargetChance;
+  let indexes = getMoleTargetIndexes(preferCat);
+
+  if (indexes.length === 0) {
+    indexes = getMoleTargetIndexes(!preferCat);
+  }
+
+  if (indexes.length === 0) {
+    return -1;
+  }
+
+  const targetIndex = randomFrom(indexes);
+  moleAttackTargetIsCat = Boolean(tiles[targetIndex]?.isCat);
+  moleUsedTileIndexes.add(targetIndex);
+  return targetIndex;
+}
+
+function placeMoleRunnerAtTile(metrics) {
+  hideDirtStrip(true);
+  moleRunner.classList.remove("idle", "entering", "shaking", "exiting", "tappable", "hit", "hit-exit");
+  moleRunner.classList.add("show");
+  moleRunner.style.transition = "none";
+  moleRunner.style.left = `${metrics.left}px`;
+  moleRunner.style.bottom = `${metrics.bottom}px`;
+  moleRunner.style.width = `${metrics.size}px`;
+  moleRunner.style.opacity = "1";
+  moleRunner.style.transform = "translateY(62%) scaleX(1)";
+}
+
+function markMoleHit(tileIndex) {
+  const tileEl = boardEl.children[tileIndex];
+  if (!tileEl) return;
+
+  tileEl.classList.remove("mole-hit-flash");
+  void tileEl.offsetWidth;
+  tileEl.classList.add("mole-hit-flash");
+  setTimeout(() => tileEl.classList.remove("mole-hit-flash"), 260);
+}
+
+function showMoleStink(tileEl) {
+  const stink = document.createElement("span");
+  stink.className = "mole-stink";
+  stink.textContent = "🦨";
+  tileEl.appendChild(stink);
+  setTimeout(() => stink.remove(), 950);
+}
+
+function stealCatTile(tileIndex) {
+  const tile = tiles[tileIndex];
+  const tileEl = boardEl.children[tileIndex];
+
+  if (!tile || !tileEl || tile.state !== "idle" || !tile.isCat) {
+    return;
+  }
+
+  tile.selected = false;
+  tile.state = "stolen";
+  moleCatsLostThisRound += 1;
+  tileEl.classList.remove("selected");
+  tileEl.classList.add("locked", "mole-shake");
+  updatePickedCount();
+
+  setTimeout(() => {
+    tileEl.classList.remove("mole-shake");
+    tileEl.classList.add("mole-stolen");
+    showMoleStink(tileEl);
+  }, GAME_CONFIG.moleStealShakeMs);
+}
+
+function resetActiveMoleAttack() {
+  moleActiveTileIndex = -1;
+  moleAttackTargetIsCat = false;
+  moleAttackTapped = false;
+  moleRunner.classList.remove("tappable", "hit", "hit-exit");
+}
+
+function finishMoleAttack({ scheduleRepeat = true } = {}) {
+  resetActiveMoleAttack();
+  moleSwapInProgress = false;
+
+  if (scheduleRepeat) {
+    scheduleMoleRepeatCheck();
+  }
+
+  if (pendingReviewAfterMole || remainingTime <= 0) {
+    pendingReviewAfterMole = false;
+    lockBoard();
+    showTimeoutAndReview();
+  }
+}
+
+async function animateMoleRunnerDown({ hit = false } = {}) {
+  moleRunner.classList.remove("tappable");
+
+  if (hit) {
+    moleRunner.style.transition = "none";
+    moleRunner.classList.remove("hit-exit");
+    moleRunner.classList.add("hit");
+    await wait(GAME_CONFIG.moleHitImpactMs);
+    moleRunner.classList.remove("hit");
+    moleRunner.classList.add("hit-exit");
+    await wait(GAME_CONFIG.moleExitMs);
+    hideMoleRunner(true);
+    return;
+  }
+
+  moleRunner.classList.remove("hit", "hit-exit");
+  moleRunner.style.transition = `transform ${GAME_CONFIG.moleExitMs}ms ease, opacity ${GAME_CONFIG.moleExitMs}ms ease`;
+  moleRunner.style.transform = "translateY(62%) scaleX(-1)";
+  moleRunner.style.opacity = "0";
+
+  await wait(GAME_CONFIG.moleExitMs);
+  hideMoleRunner(true);
+}
+
+function isMoleAttackStillActive(tileIndex) {
+  return moleSwapInProgress && !reviewInProgress && !gameOver && moleActiveTileIndex === tileIndex;
 }
 
 function updateDirtStripLayout() {
@@ -2183,12 +2351,16 @@ function setMoleRunnerPatrol({ startX, endX, y, size }) {
 }
 
 function hideMoleRunner(immediate = false) {
-  moleRunner.classList.remove("show", "idle", "entering", "shaking", "exiting");
+  moleRunner.classList.remove("show", "idle", "entering", "shaking", "exiting", "tappable", "hit", "hit-exit");
   hideDirtStrip(immediate);
 
   if (immediate) {
+    moleRunner.style.transition = "none";
     moleRunner.style.opacity = "0";
     moleRunner.style.transform = "translate(-150%, 26px) rotate(-3deg)";
+    moleRunner.style.left = "";
+    moleRunner.style.bottom = "";
+    moleRunner.style.width = "";
   }
 }
 
@@ -2300,49 +2472,14 @@ function showIdleMoleRunner() {
   const metrics = getIdleMoleRunnerMetrics();
   showDirtStrip();
   setMoleRunnerPatrol(metrics);
-  moleRunner.classList.remove("entering", "shaking", "exiting");
+  moleRunner.classList.remove("entering", "shaking", "exiting", "tappable");
   moleRunner.classList.add("show", "idle");
+  moleRunner.style.left = "";
+  moleRunner.style.bottom = "";
+  moleRunner.style.width = "";
+  moleRunner.style.transition = "";
   moleRunner.style.opacity = "1";
   moleRunner.style.transform = "";
-}
-
-async function alignMoleRunnerToColumn(columnIndex) {
-  const targetMetrics = getMoleRunnerMetrics(columnIndex);
-  if (!targetMetrics) return null;
-
-  const currentMetrics = getCurrentMoleRunnerMetrics() || targetMetrics;
-  hideMoleRunner(false);
-  showDirtStrip();
-  setMoleRunnerTarget(targetMetrics);
-
-  moleRunner.classList.add("show");
-  moleRunner.style.opacity = "1";
-  moleRunner.style.transform = `translate(${currentMetrics.x}px, ${currentMetrics.y}px) rotate(-3deg)`;
-  void moleRunner.offsetWidth;
-
-  moleRunner.classList.add("entering");
-  moleRunner.style.transform = `translate(${targetMetrics.x}px, ${targetMetrics.y}px) rotate(-3deg)`;
-
-  await wait(GAME_CONFIG.moleEnterMs);
-  moleRunner.classList.remove("entering");
-  moleRunner.classList.add("shaking");
-  await wait(GAME_CONFIG.moleAlignShakeMs);
-  moleRunner.classList.remove("shaking");
-  moleRunner.style.transform = `translate(${targetMetrics.x}px, ${targetMetrics.y}px) rotate(-3deg)`;
-
-  return targetMetrics;
-}
-
-async function animateMoleRunnerOut(metrics) {
-  if (!metrics) return;
-
-  moleRunner.classList.remove("idle", "entering", "shaking");
-  moleRunner.classList.add("show", "exiting");
-  moleRunner.style.opacity = "0";
-  moleRunner.style.transform = `translate(${metrics.x}px, ${metrics.y + 52}px) rotate(6deg)`;
-
-  await wait(GAME_CONFIG.moleExitMs);
-  hideMoleRunner(true);
 }
 
 async function deployTrapForRound() {
@@ -2440,83 +2577,85 @@ function getColumnIndexes(columnIndex) {
   return Array.from({ length: currentRows }, (_, rowIndex) => rowIndex * currentCols + columnIndex);
 }
 
-async function triggerMoleColumnSwap() {
+async function triggerMoleTileAttack() {
   moleEventTriggeredThisRound = true;
   moleSwapInProgress = true;
-
-  if (activeTrap) {
-    const trapColumnIndex = activeTrap.col;
-    const moleMetrics = await alignMoleRunnerToColumn(trapColumnIndex);
-    const trapped = await triggerTrapCatch(moleMetrics);
-
-    if (trapped) {
-      moleSwapInProgress = false;
-      if (pendingReviewAfterMole || remainingTime <= 0) {
-        pendingReviewAfterMole = false;
-        lockBoard();
-        showTimeoutAndReview();
-      }
-      return;
-    }
-  }
-
+  moleAppears = Math.max(0, moleAppears - GAME_CONFIG.moleMeterPenaltyOnTrigger);
   playTrack("rocks", { volume: 0.95 });
 
-  const columnIndex = Math.floor(Math.random() * currentCols);
-  const columnIndexes = getColumnIndexes(columnIndex);
-  const columnElements = columnIndexes.map(index => boardEl.children[index]);
-  const outgoingCatCount = columnIndexes.filter(index => tiles[index].isCat).length;
-  moleCatsLostThisRound += outgoingCatCount;
-  currentRoundRescuableCats = getRescuableCatCount();
-
-  columnElements.forEach(tileEl => {
-    tileEl.classList.remove("selected");
-    tileEl.classList.add("mole-warning");
-  });
-
-  columnIndexes.forEach(index => {
-    tiles[index].selected = false;
-  });
-  updatePickedCount();
-
-  const moleMetrics = await alignMoleRunnerToColumn(columnIndex);
-
-  moleAppears = Math.max(0, moleAppears - GAME_CONFIG.moleMeterPenaltyOnTrigger);
-
-  await wait(GAME_CONFIG.moleWarningMs);
-
-  columnElements.forEach(tileEl => {
-    tileEl.classList.remove("mole-warning");
-    tileEl.classList.add("mole-drop");
-  });
-
-  await wait(GAME_CONFIG.moleDropMs);
-
-  columnElements.forEach(tileEl => {
-    tileEl.classList.remove("mole-drop");
-    tileEl.classList.add("mole-gap");
-    tileEl.innerHTML = "";
-  });
-
-  await wait(GAME_CONFIG.moleGapMs);
-
-  columnIndexes.forEach(index => {
-    tiles[index] = buildTileData("empty");
-    const emptyTile = createTileButton(index);
-    boardEl.replaceChild(emptyTile, boardEl.children[index]);
-  });
-
-  const moleExitPromise = animateMoleRunnerOut(moleMetrics);
-  await moleExitPromise;
-
-  moleSwapInProgress = false;
-  scheduleMoleRepeatCheck();
-
-  if (pendingReviewAfterMole || remainingTime <= 0) {
-    pendingReviewAfterMole = false;
-    lockBoard();
-    showTimeoutAndReview();
+  const tileIndex = pickMoleTargetIndex();
+  if (tileIndex === -1) {
+    hideMoleRunner(true);
+    finishMoleAttack({ scheduleRepeat: false });
+    return;
   }
+
+  moleActiveTileIndex = tileIndex;
+  moleAttackTapped = false;
+
+  const tileMetrics = getMoleTileMetrics(tileIndex);
+  if (!tileMetrics) {
+    hideMoleRunner(true);
+    finishMoleAttack({ scheduleRepeat: false });
+    return;
+  }
+
+  placeMoleRunnerAtTile(tileMetrics);
+  void moleRunner.offsetWidth;
+  moleRunner.style.transition = `transform ${GAME_CONFIG.molePopupRiseMs}ms ease`;
+  moleRunner.style.transform = "translateY(0%) scaleX(1)";
+
+  await wait(GAME_CONFIG.molePopupRiseMs);
+  if (!isMoleAttackStillActive(tileIndex)) return;
+
+  await wait(GAME_CONFIG.molePopupPauseMs);
+  if (!isMoleAttackStillActive(tileIndex)) return;
+
+  if (moleAttackTapped) {
+    markMoleHit(tileIndex);
+    await animateMoleRunnerDown({ hit: true });
+    finishMoleAttack();
+    return;
+  }
+
+  moleRunner.style.transition = "transform 120ms ease";
+  moleRunner.style.transform = "translateY(0%) scaleX(-1)";
+  await wait(120);
+  if (!isMoleAttackStillActive(tileIndex)) return;
+
+  await wait(GAME_CONFIG.molePopupTurnPauseMs);
+  if (!isMoleAttackStillActive(tileIndex)) return;
+
+  if (moleAttackTapped) {
+    markMoleHit(tileIndex);
+    await animateMoleRunnerDown({ hit: true });
+    finishMoleAttack();
+    return;
+  }
+
+  moleRunner.style.transition = "transform 120ms ease";
+  moleRunner.style.transform = "translateY(0%) scaleX(1)";
+  await wait(120);
+  if (!isMoleAttackStillActive(tileIndex)) return;
+
+  moleRunner.classList.add("tappable");
+  await wait(GAME_CONFIG.moleTapWindowMs);
+  if (!isMoleAttackStillActive(tileIndex)) return;
+
+  if (moleAttackTapped) {
+    markMoleHit(tileIndex);
+    await animateMoleRunnerDown({ hit: true });
+    finishMoleAttack();
+    return;
+  }
+
+  if (moleAttackTargetIsCat) {
+    stealCatTile(tileIndex);
+    await wait(GAME_CONFIG.moleStealShakeMs);
+  }
+
+  await animateMoleRunnerDown();
+  finishMoleAttack();
 }
 
 async function startReview() {
@@ -3245,6 +3384,16 @@ function initGame() {
   showHomeScreen();
 }
 
+function handleMoleRunnerWhack(event) {
+  if (!moleSwapInProgress || moleActiveTileIndex === -1 || !moleRunner.classList.contains("tappable")) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  moleAttackTapped = true;
+}
+
 playBtn.addEventListener("click", () => {
   ensureAudio();
   showIntroScreen();
@@ -3289,6 +3438,12 @@ bottomExitBtn.addEventListener("click", () => {
 nextBtn.addEventListener("click", () => {
   ensureAudio();
   nextRound();
+});
+
+moleRunner.addEventListener("pointerdown", handleMoleRunnerWhack, true);
+moleRunner.addEventListener("touchstart", handleMoleRunnerWhack, {
+  capture: true,
+  passive: false
 });
 
 trapOfferRows.addEventListener("click", event => {
