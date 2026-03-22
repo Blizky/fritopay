@@ -71,8 +71,6 @@ const GAME_CONFIG = {
   bonusHintHalfTimeThroughRound: 10,
   // Rounds up to this one start bonus glow at 25% remaining time.
   bonusHintQuarterTimeThroughRound: 20,
-  // Meter removed when the mole gets trapped instead of firing the column event.
-  trapMolePenalty: 0.3,
   // How long the trap reveal takes at the start of a round.
   trapRevealMs: 380,
   // How long the trap and mole shake together when the trap catches the mole.
@@ -103,32 +101,26 @@ const GAME_CONFIG = {
   resultScreenDelayMs: 1000,
   // How long fanfare and nullification effects stay on screen.
   effectDurationMs: 800,
-  // Mole meter value at the start of a new game.
-  moleStartsAt: 0.0,
+  // Show a harmless tutorial mole preview on this round.
+  molePreviewRound: 4,
   // The mole event cannot happen before this round.
-  moleEarliestRound: 4,
-  // Lowest random mole meter gain added at the start of a round.
-  moleGainMin: 0.16,
-  // Highest random mole meter gain added at the start of a round.
-  moleGainMax: 0.36,
-  // Number of random rolls averaged together to keep the meter growth less spiky.
-  moleGainRolls: 3,
-  // Meter value needed to arm the mole event for a round.
-  moleTriggerThreshold: 1,
-  // Meter removed after the mole event fires.
-  moleMeterPenaltyOnTrigger: 0.5,
+  moleEarliestRound: 5,
+  // Chance that the mole appears once during rounds 5 through 9.
+  moleRound5To9Chance: 0.75,
+  // Chance of one extra mole appearance after the first one during rounds 5 through 9.
+  moleRound5To9RepeatChance: 0.2,
+  // Chance that the mole appears once during rounds 10 through 14.
+  moleRound10To14Chance: 0.8,
+  // Chance of one extra mole appearance after the first one during rounds 10 through 14.
+  moleRound10To14RepeatChance: 0.4,
+  // Chance that the mole appears once during round 15 and beyond.
+  moleRound15PlusChance: 0.9,
+  // Chance of one extra mole appearance after the first one during round 15 and beyond.
+  moleRound15PlusRepeatChance: 0.6,
   // Wait this long after a mole attack before it can return in the same round.
   moleRepeatDelayMs: 3000,
-  // Base chance for the mole to come back after a successful attack.
-  moleRepeatChanceBase: 0.5,
-  // Additional repeat chance added for each round after the first mole round.
-  moleRepeatChancePerRound: 0.03,
   // Require more than this much time left before a repeat mole attack can arm.
   moleRepeatMinimumTimeSeconds: 5,
-  // Do not trigger the mole event when the round has less time than this left.
-  moleMinimumTriggerTimeSeconds: 2,
-  // Meter removed instead when the mole is blocked for being too late in the round.
-  moleMeterPenaltyOnLateBlock: 0.25,
   // Point in the round when the mole check happens.
   moleTriggerAtTimeRatio: 0.5,
   // Start making the mole trigger earlier from this round onward.
@@ -305,10 +297,11 @@ let audioCtx = null;
 let currentRows = GAME_CONFIG.rows;
 let currentCols = GAME_CONFIG.cols;
 let currentTileCount = currentRows * currentCols;
-let moleAppears = GAME_CONFIG.moleStartsAt;
 let moleEventTriggeredThisRound = false;
 let moleSwapInProgress = false;
 let pendingReviewAfterMole = false;
+let moleAttacksTriggeredThisRound = 0;
+let moleCurrentAttackIsPreview = false;
 let moleActiveTileIndex = -1;
 let moleAttackTargetIsCat = false;
 let moleAttackTapped = false;
@@ -624,10 +617,6 @@ function clearStoredProgress() {
   cassetteCount = 0;
 }
 
-function getAverageMoleGain() {
-  return (GAME_CONFIG.moleGainMin + GAME_CONFIG.moleGainMax) / 2;
-}
-
 function simulatePermanentOfferPurchases(simulatedState, completedRound) {
   if (
     completedRound === GAME_CONFIG.muteOfferRound &&
@@ -673,31 +662,11 @@ function buildSimulatedStartState(startRound) {
     cassetteCount: 0,
     currentTrapTierIndex: 0,
     diamondTrapFailed: false,
-    moleAppears: GAME_CONFIG.moleStartsAt,
     nextRoundTime: GAME_CONFIG.startingTimeSeconds,
     nextRoundCats: GAME_CONFIG.startingCats
   };
 
   for (let completedRound = GAME_CONFIG.startingRound; completedRound < safeStartRound; completedRound++) {
-    simulatedState.moleAppears += getAverageMoleGain();
-
-    if (completedRound === GAME_CONFIG.moleEarliestRound) {
-      simulatedState.moleAppears = Math.max(
-        simulatedState.moleAppears,
-        GAME_CONFIG.moleTriggerThreshold
-      );
-    }
-
-    if (
-      completedRound >= GAME_CONFIG.moleEarliestRound &&
-      simulatedState.moleAppears >= GAME_CONFIG.moleTriggerThreshold
-    ) {
-      simulatedState.moleAppears = Math.max(
-        0,
-        simulatedState.moleAppears - GAME_CONFIG.moleMeterPenaltyOnTrigger
-      );
-    }
-
     const rescuedCats = Math.min(simulatedState.targetCats, getBoardSize(completedRound).tileCount);
     simulatedState.totalRescuedCats += rescuedCats;
     simulatedState.totalScore += rescuedCats + 3 + completedRound;
@@ -740,7 +709,6 @@ function applySimulatedStartState(startRound) {
   cassetteCount = simulatedState.cassetteCount;
   currentTrapTierIndex = simulatedState.currentTrapTierIndex;
   diamondTrapFailed = simulatedState.diamondTrapFailed;
-  moleAppears = simulatedState.moleAppears;
   nextRoundTime = simulatedState.nextRoundTime;
   nextRoundCats = simulatedState.nextRoundCats;
   currentRoundResultSummary = null;
@@ -766,6 +734,8 @@ function applySimulatedStartState(startRound) {
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
+  moleAttacksTriggeredThisRound = 0;
+  moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
   moleAttackTapped = false;
@@ -1730,10 +1700,11 @@ function resetGameState() {
   nextRoundCats = targetCats;
   currentRoundResultSummary = null;
   gameOver = false;
-  moleAppears = GAME_CONFIG.moleStartsAt;
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
+  moleAttacksTriggeredThisRound = 0;
+  moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
   moleAttackTapped = false;
@@ -1922,25 +1893,39 @@ function showIntroScreen() {
   playHomeScreenAudio();
 }
 
-function randomMoleGain() {
-  const range = GAME_CONFIG.moleGainMax - GAME_CONFIG.moleGainMin;
-  let rollTotal = 0;
-
-  for (let i = 0; i < GAME_CONFIG.moleGainRolls; i++) {
-    rollTotal += Math.random();
+function getMoleRoundChances(roundNumber = round) {
+  if (roundNumber === GAME_CONFIG.molePreviewRound) {
+    return {
+      firstChance: 1,
+      secondChance: 0
+    };
   }
 
-  const averagedRoll = rollTotal / GAME_CONFIG.moleGainRolls;
-  return GAME_CONFIG.moleGainMin + range * averagedRoll;
-}
+  if (roundNumber >= 15) {
+    return {
+      firstChance: GAME_CONFIG.moleRound15PlusChance,
+      secondChance: GAME_CONFIG.moleRound15PlusRepeatChance
+    };
+  }
 
-function getMoleRepeatChance() {
-  const roundsSinceMoleStart = Math.max(0, round - GAME_CONFIG.moleEarliestRound);
-  return Math.min(
-    1,
-    GAME_CONFIG.moleRepeatChanceBase +
-      roundsSinceMoleStart * GAME_CONFIG.moleRepeatChancePerRound
-  );
+  if (roundNumber >= 10) {
+    return {
+      firstChance: GAME_CONFIG.moleRound10To14Chance,
+      secondChance: GAME_CONFIG.moleRound10To14RepeatChance
+    };
+  }
+
+  if (roundNumber >= 5) {
+    return {
+      firstChance: GAME_CONFIG.moleRound5To9Chance,
+      secondChance: GAME_CONFIG.moleRound5To9RepeatChance
+    };
+  }
+
+  return {
+    firstChance: 0,
+    secondChance: 0
+  };
 }
 
 function getMoleTriggerRatio() {
@@ -1961,6 +1946,10 @@ function getMoleTriggerRatio() {
 function scheduleMoleRepeatCheck() {
   clearMoleRepeatTimeout();
 
+  if (moleAttacksTriggeredThisRound !== 1) {
+    return;
+  }
+
   moleRepeatTimeoutId = setTimeout(() => {
     moleRepeatTimeoutId = null;
 
@@ -1974,22 +1963,20 @@ function scheduleMoleRepeatCheck() {
       return;
     }
 
-    if (Math.random() > getMoleRepeatChance()) {
+    if (Math.random() > getMoleRoundChances().secondChance) {
       return;
     }
 
     moleEventTriggeredThisRound = false;
-    moleAppears = Math.max(moleAppears, GAME_CONFIG.moleTriggerThreshold);
   }, GAME_CONFIG.moleRepeatDelayMs);
 }
 
 function prepareRoundHazards() {
   clearMoleRepeatTimeout();
-  moleAppears += randomMoleGain();
-  if (round === GAME_CONFIG.moleEarliestRound) {
-    moleAppears = Math.max(moleAppears, GAME_CONFIG.moleTriggerThreshold);
-  }
-  moleEventTriggeredThisRound = false;
+  const moleFirstAttackWillHappen = Math.random() < getMoleRoundChances(round).firstChance;
+  moleAttacksTriggeredThisRound = 0;
+  moleCurrentAttackIsPreview = false;
+  moleEventTriggeredThisRound = !moleFirstAttackWillHappen;
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
   moleActiveTileIndex = -1;
@@ -2015,21 +2002,12 @@ function startTimer() {
     }
 
     if (
-      round >= GAME_CONFIG.moleEarliestRound &&
+      round >= GAME_CONFIG.molePreviewRound &&
       !moleEventTriggeredThisRound &&
       !moleSwapInProgress &&
-      moleAppears >= GAME_CONFIG.moleTriggerThreshold &&
       remainingTime <= roundTime * getMoleTriggerRatio()
     ) {
-      if (remainingTime < GAME_CONFIG.moleMinimumTriggerTimeSeconds) {
-        moleAppears = Math.max(
-          0,
-          moleAppears - GAME_CONFIG.moleMeterPenaltyOnLateBlock
-        );
-        moleEventTriggeredThisRound = true;
-      } else {
-        triggerMoleTileAttack();
-      }
+      triggerMoleTileAttack();
     }
 
     if (remainingTime <= 0) {
@@ -2239,6 +2217,7 @@ function stealCatTile(tileIndex) {
 
 function resetActiveMoleAttack() {
   moleActiveTileIndex = -1;
+  moleCurrentAttackIsPreview = false;
   moleAttackTargetIsCat = false;
   moleAttackTapped = false;
   moleRunner.classList.remove("tappable", "attackable", "hit", "hit-exit");
@@ -2444,7 +2423,6 @@ async function triggerTrapCatch(moleMetrics) {
     hideMoleRunner(true);
     hideTrapRunner(true);
     activeTrap = null;
-    moleAppears = Math.max(0, moleAppears - GAME_CONFIG.trapMolePenalty);
 
     return true;
   }
@@ -2468,7 +2446,8 @@ function getColumnIndexes(columnIndex) {
 async function triggerMoleTileAttack() {
   moleEventTriggeredThisRound = true;
   moleSwapInProgress = true;
-  moleAppears = Math.max(0, moleAppears - GAME_CONFIG.moleMeterPenaltyOnTrigger);
+  moleAttacksTriggeredThisRound += 1;
+  moleCurrentAttackIsPreview = round === GAME_CONFIG.molePreviewRound;
   playTrack("rocks", { volume: 0.95 });
 
   const tileIndex = pickMoleTargetIndex();
@@ -2540,7 +2519,7 @@ async function triggerMoleTileAttack() {
   }
   if (phaseResult !== "elapsed") return;
 
-  if (moleAttackTargetIsCat) {
+  if (!moleCurrentAttackIsPreview && moleAttackTargetIsCat) {
     stealCatTile(tileIndex);
     await wait(GAME_CONFIG.moleStealShakeMs);
   }
