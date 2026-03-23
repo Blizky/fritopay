@@ -3371,7 +3371,7 @@ function startIntroFlow() {
   showIntroScreen();
 }
 
-playBtn.addEventListener("click", startIntroFlow);
+playBtn?.addEventListener("click", startIntroFlow);
 
 landingStartLevel5Btn?.addEventListener("click", () => {
   ensureAudio();
@@ -3391,11 +3391,11 @@ simulatedStartList?.addEventListener("click", event => {
   beginRound();
 });
 
-clearCacheBtn.addEventListener("click", async () => {
+clearCacheBtn?.addEventListener("click", async () => {
   await clearBrowserDataAndReload();
 });
 
-startBtn.addEventListener("click", () => {
+startBtn?.addEventListener("click", () => {
   ensureAudio();
   beginRound();
 });
@@ -3406,8 +3406,8 @@ introStartLevel5Btn?.addEventListener("click", () => {
   beginRound();
 });
 
-languageToggle.addEventListener("click", handleLanguageToggleClick);
-landingLanguageToggle.addEventListener("click", handleLanguageToggleClick);
+languageToggle?.addEventListener("click", handleLanguageToggleClick);
+landingLanguageToggle?.addEventListener("click", handleLanguageToggleClick);
 moleSpeedSlider?.addEventListener("input", () => {
   setMoleSpeedPercent(Number(moleSpeedSlider.value), { persist: true });
 });
@@ -3415,30 +3415,30 @@ moleSpeedSlider?.addEventListener("change", () => {
   setMoleSpeedPercent(Number(moleSpeedSlider.value), { persist: true });
 });
 
-muteToggle.addEventListener("click", () => {
+muteToggle?.addEventListener("click", () => {
   if (!muteControlUnlocked) return;
   isMuted = !isMuted;
   ensureAudio();
   applyMuteState();
 });
 
-bottomExitBtn.addEventListener("click", () => {
+bottomExitBtn?.addEventListener("click", () => {
   if (!exitControlUnlocked) return;
   showHomeScreen();
 });
 
-nextBtn.addEventListener("click", () => {
+nextBtn?.addEventListener("click", () => {
   ensureAudio();
   nextRound();
 });
 
-moleRunner.addEventListener("pointerdown", handleMoleRunnerWhack, true);
-moleRunner.addEventListener("touchstart", handleMoleRunnerWhack, {
+moleRunner?.addEventListener("pointerdown", handleMoleRunnerWhack, true);
+moleRunner?.addEventListener("touchstart", handleMoleRunnerWhack, {
   capture: true,
   passive: false
 });
 
-trapOfferRows.addEventListener("click", event => {
+trapOfferRows?.addEventListener("click", event => {
   const buyButton = event.target.closest(".trap-offer-buy");
   if (!buyButton) return;
 
@@ -3507,15 +3507,15 @@ trapOfferRows.addEventListener("click", event => {
   renderRoundResultText();
 });
 
-trapOfferDismissBtn.addEventListener("click", () => {
+trapOfferDismissBtn?.addEventListener("click", () => {
   hideTrapOffer();
 });
 
-trapOfferCloseBtn.addEventListener("click", () => {
+trapOfferCloseBtn?.addEventListener("click", () => {
   hideTrapOffer();
 });
 
-exitBtn.addEventListener("click", () => {
+exitBtn?.addEventListener("click", () => {
   showHomeScreen();
 });
 

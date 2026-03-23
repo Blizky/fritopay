@@ -920,6 +920,7 @@ body {
   padding: 0;
   text-align: center;
   overflow: hidden;
+  pointer-events: auto;
 }
 
 .overlay-panel.home-screen::before {
@@ -1059,10 +1060,20 @@ body {
   position: relative;
   z-index: 3;
   pointer-events: auto;
+  isolation: isolate;
 }
 
 .home-screen-card * {
   pointer-events: auto;
+}
+
+.home-screen-card .cta-btn,
+.home-screen-card .simulated-start-btn,
+.home-screen-card .cache-reset-btn,
+.home-screen-card .mole-speed-tester,
+.home-screen-card .mole-speed-slider {
+  position: relative;
+  z-index: 4;
 }
 
 .game.home-screen-active .topbar,
