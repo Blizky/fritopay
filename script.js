@@ -126,9 +126,9 @@ const GAME_CONFIG = {
   // Time for the mole to pop up over a tile.
   molePopupRiseMs: 250,
   // How long the player gets to whack the mole once it is up on a cat-threat tile.
-  moleTapWindowMs: 600,
+  moleTapWindowMs: 500,
   // Fully-up window while the mole is visible on a non-target search tile.
-  moleSearchTapWindowMs: 600,
+  moleSearchTapWindowMs: 500,
   // How long the hit flash and shake stays on the mole before it disappears.
   moleHitImpactMs: 350,
   // How long the tile shakes before a cat is marked as stolen.
