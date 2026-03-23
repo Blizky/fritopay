@@ -1910,6 +1910,12 @@ function updateLanguageUI() {
   updateLanguageToggle();
 }
 
+function setOverlayPanelVisible(panel, visible) {
+  if (!panel) return;
+  panel.classList.toggle("show", visible);
+  panel.style.display = visible ? "flex" : "none";
+}
+
 function showHomeScreen() {
   resetGameState();
   createBoard();
@@ -1917,8 +1923,8 @@ function showHomeScreen() {
   updateSplashText();
   timeoutFlash.classList.remove("show");
   resultPanel.classList.remove("show");
-  landingPanel.classList.add("show");
-  splashPanel.classList.remove("show");
+  setOverlayPanelVisible(landingPanel, true);
+  setOverlayPanelVisible(splashPanel, false);
   gameEl.classList.add("home-screen-active");
   nextBtn.classList.remove("hidden");
   exitBtn.classList.add("hidden");
@@ -1927,8 +1933,8 @@ function showHomeScreen() {
 }
 
 function showIntroScreen() {
-  landingPanel.classList.remove("show");
-  splashPanel.classList.add("show");
+  setOverlayPanelVisible(landingPanel, false);
+  setOverlayPanelVisible(splashPanel, true);
   timeoutFlash.classList.remove("show");
   resultPanel.classList.remove("show");
   gameEl.classList.add("home-screen-active");
@@ -3245,8 +3251,8 @@ function showResult() {
 }
 
 async function beginRound() {
-  landingPanel.classList.remove("show");
-  splashPanel.classList.remove("show");
+  setOverlayPanelVisible(landingPanel, false);
+  setOverlayPanelVisible(splashPanel, false);
   gameEl.classList.remove("home-screen-active");
   resultPanel.classList.remove("show");
   timeoutFlash.classList.remove("show");
