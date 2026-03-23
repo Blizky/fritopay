@@ -111,8 +111,12 @@ const GAME_CONFIG = {
   moleRound10To14EventDurationMs: 6500,
   // How long a mole event lasts during round 15 and beyond.
   moleRound15PlusEventDurationMs: 8000,
+  // Chance that a non-cat search popup repops faster than normal.
+  moleSearchFastRepeatChance: 0.5,
   // Wait this long after a mole attack before it can return in the same round.
   moleRepeatDelayMs: 400,
+  // Faster repop used by some non-cat search popups to break the rhythm.
+  moleSearchFastRepeatDelayMs: 200,
   // Point in the round when the mole check happens.
   moleTriggerAtTimeRatio: 0.5,
   // Start making the mole trigger earlier from this round onward.
@@ -231,10 +235,12 @@ const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
 
 const landingPanel = document.getElementById("landingPanel");
-const landingLanguageToggle = document.getElementById("landingLanguageToggle");
+const introPanel = document.getElementById("introPanel");
+const introLanguageToggle = document.getElementById("introLanguageToggle");
 const startScreenText = document.getElementById("startScreenText");
 const startTimeNote = document.getElementById("startTimeNote");
 const playBtn = document.getElementById("playBtn");
+const startBtn = document.getElementById("startBtn");
 const landingStartLevel5Btn = document.getElementById("landingStartLevel5Btn");
 const clearCacheBtn = document.getElementById("clearCacheBtn");
 const timeoutFlash = document.getElementById("timeoutFlash");
@@ -365,6 +371,7 @@ const COPY = {
     splashTimeNotice: value => `You have ${value} second${value === 1 ? "" : "s"} to find all the cats.`,
     freeHairballWon: "You won a free hairball!",
     perfectRescueTimeWon: value => `You won +${value} seconds.`,
+    play: "Play",
     startPlaying: "Start playing",
     jumpToLevel: value => `Jump to level ${value}`,
     clearCache: "Clear cache",
@@ -456,6 +463,7 @@ const COPY = {
     splashTimeNotice: value => `Tienes ${value} segundo${value === 1 ? "" : "s"} para encontrar a todos los gatos.`,
     freeHairballWon: "¡Ganaste una bola de pelo gratis!",
     perfectRescueTimeWon: value => `Ganaste +${value} segundos.`,
+    play: "Jugar",
     startPlaying: "Empezar a jugar",
     jumpToLevel: value => `Ir al nivel ${value}`,
     clearCache: "Borrar cache",
@@ -871,7 +879,7 @@ function getTrapTierLabel(tierId, plural = false) {
 }
 
 function isPreGameScreenVisible() {
-  return landingPanel.classList.contains("show");
+  return landingPanel.classList.contains("show") || introPanel.classList.contains("show");
 }
 
 function getBoardGrowth(roundNumber = round) {
@@ -1828,7 +1836,7 @@ function renderGameOverText() {
 }
 
 function updateLanguageToggle() {
-  [languageToggle, landingLanguageToggle].forEach(toggle => {
+  [languageToggle, introLanguageToggle].forEach(toggle => {
     if (!toggle) return;
     toggle.querySelectorAll(".language-toggle-btn").forEach(button => {
       button.classList.toggle("active", button.dataset.lang === currentLanguage);
@@ -1867,7 +1875,8 @@ function handleLanguageToggleClick(event) {
 function updateLanguageUI() {
   document.documentElement.lang = currentLanguage;
   timeoutFlash.textContent = copy("timeout");
-  playBtn.textContent = copy("startPlaying");
+  playBtn.textContent = copy("play");
+  startBtn.textContent = copy("startPlaying");
   if (landingStartLevel5Btn) {
     landingStartLevel5Btn.textContent = copy("jumpToLevel", 5);
   }
@@ -1927,9 +1936,20 @@ function showHomeScreen() {
   timeoutFlash.classList.remove("show");
   resultPanel.classList.remove("show");
   setOverlayPanelVisible(landingPanel, true);
+  setOverlayPanelVisible(introPanel, false);
   gameEl.classList.add("home-screen-active");
   nextBtn.classList.remove("hidden");
   exitBtn.classList.add("hidden");
+  updateLanguageUI();
+  playHomeScreenAudio();
+}
+
+function showIntroScreen() {
+  timeoutFlash.classList.remove("show");
+  resultPanel.classList.remove("show");
+  setOverlayPanelVisible(landingPanel, false);
+  setOverlayPanelVisible(introPanel, true);
+  gameEl.classList.add("home-screen-active");
   updateLanguageUI();
   playHomeScreenAudio();
 }
@@ -1995,7 +2015,7 @@ function endMoleEvent() {
   restoreRoundBackgroundMusic();
 }
 
-function scheduleMoleRepeatCheck() {
+function scheduleMoleRepeatCheck(delayMs = GAME_CONFIG.moleRepeatDelayMs) {
   clearMoleRepeatTimeout();
 
   if (!hasMoleEventTimeRemaining() || moleCurrentAttackIsPreview) {
@@ -2021,7 +2041,7 @@ function scheduleMoleRepeatCheck() {
     }
 
     triggerMoleTileAttack();
-  }, GAME_CONFIG.moleRepeatDelayMs);
+  }, delayMs);
 }
 
 function prepareRoundHazards() {
@@ -2363,14 +2383,18 @@ function resetActiveMoleAttack() {
   moleRunner.classList.remove("tappable", "attackable", "hit", "hit-exit");
 }
 
-function finishMoleAttack({ scheduleRepeat = true, endBurst = false } = {}) {
+function finishMoleAttack({
+  scheduleRepeat = true,
+  endBurst = false,
+  repeatDelayMs = GAME_CONFIG.moleRepeatDelayMs
+} = {}) {
   resetActiveMoleAttack();
   moleSwapInProgress = false;
 
   if (endBurst) {
     endMoleEvent();
   } else if (scheduleRepeat && hasMoleEventTimeRemaining()) {
-    scheduleMoleRepeatCheck();
+    scheduleMoleRepeatCheck(repeatDelayMs);
   } else if (moleEventBurstActive) {
     endMoleEvent();
   }
@@ -2439,6 +2463,14 @@ function waitForMoleAttackPhase(tileIndex, durationMs) {
 
     requestAnimationFrame(tick);
   });
+}
+
+function getMoleSearchRepeatDelayMs() {
+  if (Math.random() < GAME_CONFIG.moleSearchFastRepeatChance) {
+    return GAME_CONFIG.moleSearchFastRepeatDelayMs;
+  }
+
+  return GAME_CONFIG.moleRepeatDelayMs;
 }
 
 async function resolveMoleHit(tileIndex) {
@@ -2551,10 +2583,15 @@ async function triggerMoleTileAttack() {
     return;
   }
 
+  const repeatDelayMs = !moleCurrentAttackIsPreview && !moleAttackTargetIsStealable
+    ? getMoleSearchRepeatDelayMs()
+    : GAME_CONFIG.moleRepeatDelayMs;
+
   await animateMoleRunnerDown();
   finishMoleAttack({
     scheduleRepeat: moleEventBurstActive,
-    endBurst: !moleEventBurstActive
+    endBurst: !moleEventBurstActive,
+    repeatDelayMs
   });
 }
 
@@ -3244,6 +3281,7 @@ function showResult() {
 
 function beginRound() {
   setOverlayPanelVisible(landingPanel, false);
+  setOverlayPanelVisible(introPanel, false);
   gameEl.classList.remove("home-screen-active");
   resultPanel.classList.remove("show");
   timeoutFlash.classList.remove("show");
@@ -3286,7 +3324,12 @@ function handleMoleRunnerWhack(event) {
   moleAttackTapped = true;
 }
 
-playBtn?.addEventListener("click", startFreshGame);
+playBtn?.addEventListener("click", () => {
+  tryEnsureAudio();
+  showIntroScreen();
+});
+
+startBtn?.addEventListener("click", startFreshGame);
 
 landingStartLevel5Btn?.addEventListener("click", () => {
   startSimulatedGame(5);
@@ -3297,7 +3340,7 @@ clearCacheBtn?.addEventListener("click", async () => {
 });
 
 languageToggle?.addEventListener("click", handleLanguageToggleClick);
-landingLanguageToggle?.addEventListener("click", handleLanguageToggleClick);
+introLanguageToggle?.addEventListener("click", handleLanguageToggleClick);
 
 muteToggle?.addEventListener("click", () => {
   if (!muteControlUnlocked) return;

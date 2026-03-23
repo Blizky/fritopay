@@ -1098,32 +1098,53 @@ body {
   display: none;
 }
 
-.start-screen-card {
-  width: min(100%, 420px);
-  gap: 18px;
-  margin-top: 0;
+.intro-home-screen {
+  justify-content: flex-start;
+  align-items: center;
   padding:
-    max(40px, env(safe-area-inset-top) + 28px)
-    24px
-    max(40px, env(safe-area-inset-bottom) + 28px);
+    max(24px, env(safe-area-inset-top) + 12px)
+    0
+    max(104px, env(safe-area-inset-bottom) + 88px);
+}
+
+.landing-open-btn {
+  width: min(100%, 240px);
+  margin-top: auto;
+  margin-bottom: max(34px, env(safe-area-inset-bottom) + 34px);
   position: relative;
   z-index: 1001;
 }
 
-.start-screen-card .overlay-text {
+.intro-screen-card {
+  width: min(100%, 420px);
+  gap: 18px;
+  margin-top: clamp(172px, 22vh, 250px);
+  padding:
+    40px
+    24px
+    34px;
+  position: relative;
+  z-index: 1001;
+  background:
+    radial-gradient(circle at top, rgba(255, 249, 225, 0.68), rgba(255, 249, 225, 0) 36%),
+    linear-gradient(180deg, rgba(255, 251, 248, 0.9) 0%, rgba(246, 236, 240, 0.88) 52%, rgba(237, 236, 246, 0.9) 100%);
+  backdrop-filter: blur(6px);
+}
+
+.intro-screen-card .overlay-text {
   max-width: 100%;
   margin-bottom: 0;
   font-size: clamp(1.92rem, 6.6vw, 2.72rem);
   line-height: 1.38;
 }
 
-.start-screen-card .overlay-text strong {
+.intro-screen-card .overlay-text strong {
   font-size: inherit;
 }
 
-.start-screen-card .cta-btn,
-.start-screen-card .simulated-start-btn,
-.start-screen-card .cache-reset-btn {
+.intro-screen-card .cta-btn,
+.intro-screen-card .simulated-start-btn,
+.intro-screen-card .cache-reset-btn {
   width: min(100%, 280px);
 }
 
@@ -1220,6 +1241,13 @@ body {
   line-height: 1.22;
   text-align: center;
   text-shadow: 0 1px 0 rgba(255, 246, 206, 0.6);
+}
+
+@media (max-width: 520px) {
+  .intro-screen-card {
+    width: calc(100% - 20px);
+    margin-top: clamp(146px, 18vh, 220px);
+  }
 }
 
 .home-screen .overlay-title {
