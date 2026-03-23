@@ -106,25 +106,25 @@ const GAME_CONFIG = {
   // Chance that the mole appears once during round 15 and beyond.
   moleRound15PlusChance: 0.9,
   // How long a mole event lasts during rounds 5 through 9.
-  moleRound5To9EventDurationMs: 5000,
+  moleRound5To9EventDurationMs: 4000,
   // How long a mole event lasts during rounds 10 through 14.
-  moleRound10To14EventDurationMs: 6500,
+  moleRound10To14EventDurationMs: 5000,
   // How long a mole event lasts during round 15 and beyond.
-  moleRound15PlusEventDurationMs: 8000,
+  moleRound15PlusEventDurationMs: 6000,
   // Chance that a non-cat search popup repops faster than normal.
   moleSearchFastRepeatChance: 0.5,
   // Earliest time for the first mole event once a round begins.
-  moleFirstEventDelayMinMs: 3000,
+  moleFirstEventDelayMinMs: 1000,
   // Latest time for the first mole event once a round begins.
-  moleFirstEventDelayMaxMs: 5000,
+  moleFirstEventDelayMaxMs: 2000,
   // Wait this long after a mole attack before it can return in the same round.
   moleRepeatDelayMs: 400,
   // Faster repop used by some non-cat search popups to break the rhythm.
   moleSearchFastRepeatDelayMs: 200,
   // Earliest delay before another mole event can begin after one ends.
-  moleFollowupEventDelayMinMs: 3000,
+  moleFollowupEventDelayMinMs: 1000,
   // Latest delay before another mole event can begin after one ends.
-  moleFollowupEventDelayMaxMs: 4000,
+  moleFollowupEventDelayMaxMs: 2000,
   // Chance that a mole attack targets a cat tile first.
   moleCatTargetChance: 0.25,
   // Time for the mole to pop up over a tile.
@@ -1949,10 +1949,6 @@ function getMoleEventDurationMs(roundNumber = round) {
   return 0;
 }
 
-function getMolePreviewDurationMs() {
-  return GAME_CONFIG.molePopupRiseMs + GAME_CONFIG.moleTapWindowMs + GAME_CONFIG.moleExitMs;
-}
-
 function getMoleEventStartDelayMs({ firstEvent = false } = {}) {
   if (firstEvent) {
     return randomIntBetween(
@@ -1967,16 +1963,12 @@ function getMoleEventStartDelayMs({ firstEvent = false } = {}) {
   );
 }
 
-function canScheduleMoleEventAfterDelay(delayMs, { preview = false } = {}) {
+function canScheduleMoleEventAfterDelay(delayMs) {
   if (reviewInProgress || gameOver || pendingReviewAfterMole || remainingTime <= 0) {
     return false;
   }
 
-  const eventDurationMs = preview
-    ? getMolePreviewDurationMs()
-    : getMoleEventDurationMs(round);
-
-  return remainingTime * 1000 > delayMs + eventDurationMs;
+  return remainingTime * 1000 > delayMs;
 }
 
 function maybeScheduleMoleEvent({ firstEvent = false } = {}) {
@@ -1992,7 +1984,7 @@ function maybeScheduleMoleEvent({ firstEvent = false } = {}) {
   }
 
   const delayMs = getMoleEventStartDelayMs({ firstEvent });
-  if (!canScheduleMoleEventAfterDelay(delayMs, { preview: isPreviewEvent })) {
+  if (!canScheduleMoleEventAfterDelay(delayMs)) {
     return false;
   }
 
