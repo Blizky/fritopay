@@ -112,7 +112,7 @@ const GAME_CONFIG = {
   // How long a mole event lasts during round 15 and beyond.
   moleRound15PlusEventDurationMs: 8000,
   // Wait this long after a mole attack before it can return in the same round.
-  moleRepeatDelayMs: 180,
+  moleRepeatDelayMs: 400,
   // Point in the round when the mole check happens.
   moleTriggerAtTimeRatio: 0.5,
   // Start making the mole trigger earlier from this round onward.
@@ -126,15 +126,15 @@ const GAME_CONFIG = {
   // Time for the mole to pop up over a tile.
   molePopupRiseMs: 250,
   // How long the player gets to whack the mole once it is up on a cat-threat tile.
-  moleTapWindowMs: 700,
-  // Shorter fully-up window while the mole is only scanning a non-cat tile.
-  moleSearchTapWindowMs: 420,
+  moleTapWindowMs: 600,
+  // Fully-up window while the mole is visible on a non-target search tile.
+  moleSearchTapWindowMs: 600,
   // How long the hit flash and shake stays on the mole before it disappears.
   moleHitImpactMs: 350,
   // How long the tile shakes before a cat is marked as stolen.
   moleStealShakeMs: 320,
   // How long the mole takes to duck away after an attack.
-  moleExitMs: 260
+  moleExitMs: 250
 };
 
 const CAT_EMOJIS = ["🐱", "🐈", "🐈‍⬛", "😺", "😸", "😻", "😹", "🙀", "😿", "😽", "😾", "😼"];
