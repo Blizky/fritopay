@@ -1099,12 +1099,29 @@ body {
 }
 
 .intro-home-screen {
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   padding:
     max(24px, env(safe-area-inset-top) + 12px)
-    0
-    max(104px, env(safe-area-inset-bottom) + 88px);
+    16px
+    max(24px, env(safe-area-inset-bottom) + 12px);
+}
+
+.overlay-panel.home-screen.intro-home-screen::before {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, rgba(255, 249, 225, 0.44), rgba(255, 249, 225, 0) 34%),
+    linear-gradient(180deg, rgba(255, 251, 248, 0.74) 0%, rgba(246, 236, 240, 0.72) 52%, rgba(237, 236, 246, 0.76) 100%);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.intro-home-screen > * {
+  position: relative;
+  z-index: 1;
 }
 
 .landing-open-btn {
@@ -1118,7 +1135,7 @@ body {
 .intro-screen-card {
   width: min(100%, 420px);
   gap: 18px;
-  margin-top: clamp(172px, 22vh, 250px);
+  margin-top: 0;
   padding:
     40px
     24px
@@ -1246,7 +1263,6 @@ body {
 @media (max-width: 520px) {
   .intro-screen-card {
     width: calc(100% - 20px);
-    margin-top: clamp(146px, 18vh, 220px);
   }
 }
 
