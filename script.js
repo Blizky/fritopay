@@ -124,19 +124,11 @@ const GAME_CONFIG = {
   // Chance that a mole attack targets a cat tile first.
   moleCatTargetChance: 0.25,
   // Time for the mole to pop up over a tile.
-  molePopupRiseMs: 150,
-  // First pause after the mole pops up on a cat-threat tile.
-  molePopupPauseMs: 140,
-  // Shorter pause while the mole scans a non-cat tile.
-  moleSearchPauseMs: 90,
-  // Second pause after the mole turns around on a cat-threat tile.
-  molePopupTurnPauseMs: 160,
-  // Shorter second pause while the mole scans a non-cat tile.
-  moleSearchTurnPauseMs: 110,
-  // How long the player gets to whack the mole once it is fully up on a cat-threat tile.
-  moleTapWindowMs: 420,
+  molePopupRiseMs: 100,
+  // How long the player gets to whack the mole once it is up on a cat-threat tile.
+  moleTapWindowMs: 180,
   // Shorter fully-up window while the mole is only scanning a non-cat tile.
-  moleSearchTapWindowMs: 220,
+  moleSearchTapWindowMs: 110,
   // How long the hit flash and shake stays on the mole before it disappears.
   moleHitImpactMs: 200,
   // How long the tile shakes before a cat is marked as stolen.
@@ -308,6 +300,7 @@ let moleEventEndsAt = 0;
 let moleCurrentAttackIsPreview = false;
 let moleActiveTileIndex = -1;
 let moleAttackTargetIsCat = false;
+let moleAttackTargetIsStealable = false;
 let moleAttackTapped = false;
 let moleUsedTileIndexes = new Set();
 let trapInventory = [];
@@ -743,6 +736,7 @@ function applySimulatedStartState(startRound) {
   moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
+  moleAttackTargetIsStealable = false;
   moleAttackTapped = false;
   moleUsedTileIndexes.clear();
   moleCatsLostThisRound = 0;
@@ -1658,6 +1652,7 @@ function createBoard() {
   moleActiveTileIndex = -1;
   moleEventEndsAt = 0;
   moleAttackTargetIsCat = false;
+  moleAttackTargetIsStealable = false;
   moleAttackTapped = false;
   moleUsedTileIndexes.clear();
   moleCatsLostThisRound = 0;
@@ -1731,6 +1726,7 @@ function resetGameState() {
   moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
+  moleAttackTargetIsStealable = false;
   moleAttackTapped = false;
   moleUsedTileIndexes.clear();
   trapInventory = [];
@@ -2220,13 +2216,17 @@ function createMoleDirtBurst(metrics, direction = "out") {
   setTimeout(() => burst.remove(), 520);
 }
 
-function getMoleTargetIndexes(wantCat) {
+function isMoleStealableTile(tile) {
+  return Boolean(tile && (tile.isCat || tile.isClock || tile.isYarn || tile.isCassette));
+}
+
+function getMoleTargetIndexes(wantStealable) {
   return tiles.reduce((indexes, tile, index) => {
     if (!tile || tile.state !== "idle" || moleUsedTileIndexes.has(index)) {
       return indexes;
     }
 
-    if (Boolean(tile.isCat) === wantCat) {
+    if (isMoleStealableTile(tile) === wantStealable) {
       indexes.push(index);
     }
 
@@ -2235,11 +2235,11 @@ function getMoleTargetIndexes(wantCat) {
 }
 
 function pickMoleTargetIndex() {
-  const preferCat = Math.random() < GAME_CONFIG.moleCatTargetChance;
-  let indexes = getMoleTargetIndexes(preferCat);
+  const preferStealable = Math.random() < GAME_CONFIG.moleCatTargetChance;
+  let indexes = getMoleTargetIndexes(preferStealable);
 
   if (indexes.length === 0) {
-    indexes = getMoleTargetIndexes(!preferCat);
+    indexes = getMoleTargetIndexes(!preferStealable);
   }
 
   if (indexes.length === 0) {
@@ -2247,6 +2247,7 @@ function pickMoleTargetIndex() {
   }
 
   const targetIndex = randomFrom(indexes);
+  moleAttackTargetIsStealable = isMoleStealableTile(tiles[targetIndex]);
   moleAttackTargetIsCat = Boolean(tiles[targetIndex]?.isCat);
   moleUsedTileIndexes.add(targetIndex);
   return targetIndex;
@@ -2324,11 +2325,11 @@ async function resolveTrapDefense(tileIndex) {
   return false;
 }
 
-function stealCatTile(tileIndex) {
+function stealMoleTargetTile(tileIndex) {
   const tile = tiles[tileIndex];
   const tileEl = boardEl.children[tileIndex];
 
-  if (!tile || !tileEl || tile.state !== "idle" || !tile.isCat) {
+  if (!tile || !tileEl || tile.state !== "idle" || !isMoleStealableTile(tile)) {
     return;
   }
 
@@ -2351,6 +2352,7 @@ function resetActiveMoleAttack() {
   moleActiveTileIndex = -1;
   moleCurrentAttackIsPreview = false;
   moleAttackTargetIsCat = false;
+  moleAttackTargetIsStealable = false;
   moleAttackTapped = false;
   moleRunner.classList.remove("tappable", "attackable", "hit", "hit-exit");
 }
@@ -2486,13 +2488,7 @@ async function triggerMoleTileAttack() {
 
   moleActiveTileIndex = tileIndex;
   moleAttackTapped = false;
-  const isSearchTile = !moleCurrentAttackIsPreview && !moleAttackTargetIsCat;
-  const popupPauseMs = isSearchTile
-    ? GAME_CONFIG.moleSearchPauseMs
-    : GAME_CONFIG.molePopupPauseMs;
-  const popupTurnPauseMs = isSearchTile
-    ? GAME_CONFIG.moleSearchTurnPauseMs
-    : GAME_CONFIG.molePopupTurnPauseMs;
+  const isSearchTile = !moleCurrentAttackIsPreview && !moleAttackTargetIsStealable;
   const tapWindowMs = isSearchTile
     ? GAME_CONFIG.moleSearchTapWindowMs
     : GAME_CONFIG.moleTapWindowMs;
@@ -2516,38 +2512,6 @@ async function triggerMoleTileAttack() {
   }
   if (phaseResult !== "elapsed") return;
 
-  phaseResult = await waitForMoleAttackPhase(tileIndex, popupPauseMs);
-  if (phaseResult === "hit") {
-    await resolveMoleHit(tileIndex);
-    return;
-  }
-  if (phaseResult !== "elapsed") return;
-
-  moleRunner.style.transition = "transform 120ms ease";
-  moleRunner.style.transform = "translateY(0%) scaleX(-1)";
-  phaseResult = await waitForMoleAttackPhase(tileIndex, 120);
-  if (phaseResult === "hit") {
-    await resolveMoleHit(tileIndex);
-    return;
-  }
-  if (phaseResult !== "elapsed") return;
-
-  phaseResult = await waitForMoleAttackPhase(tileIndex, popupTurnPauseMs);
-  if (phaseResult === "hit") {
-    await resolveMoleHit(tileIndex);
-    return;
-  }
-  if (phaseResult !== "elapsed") return;
-
-  moleRunner.style.transition = "transform 120ms ease";
-  moleRunner.style.transform = "translateY(0%) scaleX(1)";
-  phaseResult = await waitForMoleAttackPhase(tileIndex, 120);
-  if (phaseResult === "hit") {
-    await resolveMoleHit(tileIndex);
-    return;
-  }
-  if (phaseResult !== "elapsed") return;
-
   moleRunner.classList.add("tappable");
   phaseResult = await waitForMoleAttackPhase(tileIndex, tapWindowMs);
   if (phaseResult === "hit") {
@@ -2556,21 +2520,26 @@ async function triggerMoleTileAttack() {
   }
   if (phaseResult !== "elapsed") return;
 
-  if (!moleCurrentAttackIsPreview && moleAttackTargetIsCat) {
-    const trapSavedTile = await resolveTrapDefense(tileIndex);
+  if (!moleCurrentAttackIsPreview && moleAttackTargetIsStealable) {
+    if (moleAttackTargetIsCat) {
+      const trapSavedTile = await resolveTrapDefense(tileIndex);
 
-    if (trapSavedTile) {
-      finishMoleAttack({
-        scheduleRepeat: moleEventBurstActive,
-        endBurst: !moleEventBurstActive
-      });
-      return;
+      if (trapSavedTile) {
+        finishMoleAttack({
+          scheduleRepeat: moleEventBurstActive,
+          endBurst: !moleEventBurstActive
+        });
+        return;
+      }
     }
 
-    stealCatTile(tileIndex);
+    stealMoleTargetTile(tileIndex);
     await wait(GAME_CONFIG.moleStealShakeMs);
     await animateMoleRunnerDown();
-    finishMoleAttack({ scheduleRepeat: false, endBurst: true });
+    finishMoleAttack({
+      scheduleRepeat: moleEventBurstActive,
+      endBurst: !moleEventBurstActive
+    });
     return;
   }
 
