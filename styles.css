@@ -1069,9 +1069,7 @@ body {
 
 .home-screen-card .cta-btn,
 .home-screen-card .simulated-start-btn,
-.home-screen-card .cache-reset-btn,
-.home-screen-card .mole-speed-tester,
-.home-screen-card .mole-speed-slider {
+.home-screen-card .cache-reset-btn {
   position: relative;
   z-index: 4;
 }
@@ -1153,96 +1151,6 @@ body {
   display: grid;
   gap: 8px;
   margin-top: 14px;
-}
-
-.mole-speed-tester {
-  width: min(100%, 320px);
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-  padding: 12px 14px 10px;
-  border: 2px solid rgba(235, 220, 181, 0.94);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 8px 14px rgba(24, 13, 10, 0.24),
-    inset 0 -2px 0 rgba(191, 161, 136, 0.14);
-}
-
-.mole-speed-header,
-.mole-speed-scale {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.mole-speed-label,
-.mole-speed-value {
-  color: #7a5a3d;
-  font-weight: 900;
-}
-
-.mole-speed-label {
-  font-size: 0.84rem;
-  letter-spacing: 0.02em;
-}
-
-.mole-speed-value {
-  font-size: 0.88rem;
-}
-
-.mole-speed-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  accent-color: #d88942;
-  background: #fff;
-  border-radius: 999px;
-  cursor: pointer;
-  touch-action: pan-x;
-}
-
-.mole-speed-slider::-webkit-slider-runnable-track {
-  height: 10px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ffffff 0%, #f1e8dd 100%);
-  border: 1px solid rgba(214, 191, 171, 0.9);
-}
-
-.mole-speed-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 22px;
-  height: 22px;
-  margin-top: -7px;
-  border-radius: 50%;
-  border: 2px solid rgba(172, 115, 57, 0.92);
-  background: linear-gradient(180deg, #ffd798 0%, #e39b48 100%);
-  box-shadow: 0 4px 8px rgba(120, 97, 108, 0.22);
-}
-
-.mole-speed-slider::-moz-range-track {
-  height: 10px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ffffff 0%, #f1e8dd 100%);
-  border: 1px solid rgba(214, 191, 171, 0.9);
-}
-
-.mole-speed-slider::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid rgba(172, 115, 57, 0.92);
-  background: linear-gradient(180deg, #ffd798 0%, #e39b48 100%);
-  box-shadow: 0 4px 8px rgba(120, 97, 108, 0.22);
-}
-
-.mole-speed-scale {
-  color: #9a7757;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
 }
 
 .simulated-start-btn {

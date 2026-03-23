@@ -227,11 +227,6 @@ const bottomExitBtn = document.getElementById("bottomExitBtn");
 const pickedLabel = document.getElementById("pickedLabel");
 const languageToggle = document.getElementById("languageToggle");
 const muteToggle = document.getElementById("muteToggle");
-const moleSpeedLabelEl = document.getElementById("moleSpeedLabel");
-const moleSpeedValueEl = document.getElementById("moleSpeedValue");
-const moleSpeedSlider = document.getElementById("moleSpeedSlider");
-const moleSpeedSlowLabelEl = document.getElementById("moleSpeedSlowLabel");
-const moleSpeedFastLabelEl = document.getElementById("moleSpeedFastLabel");
 const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
 const simulatedStartList = document.getElementById("simulatedStartList");
@@ -342,7 +337,6 @@ let currentRoundMissedCats = 0;
 let cassetteCount = 0;
 let isMuted = false;
 let wrongTilesSelectedThisRound = 0;
-let moleSpeedPercent = DEFAULT_MOLE_SPEED_PERCENT;
 let moleRepeatTimeoutId = null;
 let roundCountdownPlayed = false;
 let roundIntroPlayer = null;
@@ -356,11 +350,7 @@ const activeAudioPlayers = new Set();
 const pendingUiUnlockAnimations = new Set();
 const LANGUAGE_STORAGE_KEY = "fritopay-language";
 const PROGRESS_STORAGE_KEY = "fritopay-progress";
-const MOLE_SPEED_STORAGE_KEY = "fritopay-mole-speed";
 const SIMULATED_START_ROUNDS = [5, 10, 15];
-const DEFAULT_MOLE_SPEED_PERCENT = 100;
-const MIN_MOLE_SPEED_PERCENT = 50;
-const MAX_MOLE_SPEED_PERCENT = 200;
 
 const COPY = {
   en: {
@@ -382,10 +372,6 @@ const COPY = {
     perfectRescueTimeWon: value => `You won +${value} seconds.`,
     startPlaying: "Start playing",
     jumpToLevel: value => `Jump to level ${value}`,
-    moleSpeedLabel: "Mole Speed",
-    moleSpeedValue: value => `${value}%`,
-    slower: "Slower",
-    faster: "Faster",
     clearCache: "Clear cache",
     startRescuingCats: "Start rescuing cats",
     timeout: "Time's up",
@@ -478,10 +464,6 @@ const COPY = {
     perfectRescueTimeWon: value => `Ganaste +${value} segundos.`,
     startPlaying: "Empezar a jugar",
     jumpToLevel: value => `Ir al nivel ${value}`,
-    moleSpeedLabel: "Velocidad del topo",
-    moleSpeedValue: value => `${value}%`,
-    slower: "Más lento",
-    faster: "Más rápido",
     clearCache: "Borrar cache",
     startRescuingCats: "Empezar a rescatar gatos",
     timeout: "Se acabó el tiempo",
@@ -578,61 +560,6 @@ function getStoredPreferredLanguage() {
   } catch {
     return "";
   }
-}
-
-function clampMoleSpeedPercent(value) {
-  return clamp(
-    Math.round(Number.isFinite(value) ? value : DEFAULT_MOLE_SPEED_PERCENT),
-    MIN_MOLE_SPEED_PERCENT,
-    MAX_MOLE_SPEED_PERCENT
-  );
-}
-
-function getStoredMoleSpeedPercent() {
-  try {
-    return clampMoleSpeedPercent(Number(window.localStorage.getItem(MOLE_SPEED_STORAGE_KEY)));
-  } catch {
-    return DEFAULT_MOLE_SPEED_PERCENT;
-  }
-}
-
-function renderMoleSpeedControl() {
-  if (!moleSpeedSlider || !moleSpeedValueEl || !moleSpeedLabelEl) return;
-
-  moleSpeedLabelEl.textContent = copy("moleSpeedLabel");
-  moleSpeedValueEl.textContent = copy("moleSpeedValue", moleSpeedPercent);
-  moleSpeedSlider.value = String(moleSpeedPercent);
-
-  if (moleSpeedSlowLabelEl) {
-    moleSpeedSlowLabelEl.textContent = copy("slower");
-  }
-
-  if (moleSpeedFastLabelEl) {
-    moleSpeedFastLabelEl.textContent = copy("faster");
-  }
-}
-
-function setMoleSpeedPercent(value, { persist = false } = {}) {
-  const nextValue = clampMoleSpeedPercent(value);
-  const changed = nextValue !== moleSpeedPercent;
-  moleSpeedPercent = nextValue;
-  renderMoleSpeedControl();
-
-  if (persist) {
-    try {
-      window.localStorage.setItem(MOLE_SPEED_STORAGE_KEY, String(nextValue));
-    } catch {}
-  }
-
-  return changed;
-}
-
-function getMoleSpeedFactor() {
-  return moleSpeedPercent / 100;
-}
-
-function scaleMoleTimingMs(baseMs, minimumMs = 40) {
-  return Math.max(minimumMs, Math.round(baseMs * Math.max(0.01, getMoleSpeedFactor())));
 }
 
 function getDefaultStoredProgress() {
@@ -1981,7 +1908,6 @@ function updateLanguageUI() {
   updateBottomExitButton();
   updateMuteButton();
   updateLanguageToggle();
-  renderMoleSpeedControl();
 }
 
 function showHomeScreen() {
@@ -2032,15 +1958,15 @@ function getMoleRoundFirstChance(roundNumber = round) {
 
 function getMoleEventDurationMs(roundNumber = round) {
   if (roundNumber >= 15) {
-    return scaleMoleTimingMs(GAME_CONFIG.moleRound15PlusEventDurationMs, 1200);
+    return GAME_CONFIG.moleRound15PlusEventDurationMs;
   }
 
   if (roundNumber >= 10) {
-    return scaleMoleTimingMs(GAME_CONFIG.moleRound10To14EventDurationMs, 1000);
+    return GAME_CONFIG.moleRound10To14EventDurationMs;
   }
 
   if (roundNumber >= 5) {
-    return scaleMoleTimingMs(GAME_CONFIG.moleRound5To9EventDurationMs, 900);
+    return GAME_CONFIG.moleRound5To9EventDurationMs;
   }
 
   return 0;
@@ -2097,7 +2023,7 @@ function scheduleMoleRepeatCheck() {
     }
 
     triggerMoleTileAttack();
-  }, scaleMoleTimingMs(GAME_CONFIG.moleRepeatDelayMs, 60));
+  }, GAME_CONFIG.moleRepeatDelayMs);
 }
 
 function prepareRoundHazards() {
@@ -2355,7 +2281,7 @@ function markMoleHit(tileIndex) {
   tileEl.classList.remove("mole-hit-flash");
   void tileEl.offsetWidth;
   tileEl.classList.add("mole-hit-flash");
-  setTimeout(() => tileEl.classList.remove("mole-hit-flash"), scaleMoleTimingMs(GAME_CONFIG.moleHitImpactMs, 120));
+  setTimeout(() => tileEl.classList.remove("mole-hit-flash"), GAME_CONFIG.moleHitImpactMs);
 }
 
 function showMoleStink(tileEl) {
@@ -2427,7 +2353,7 @@ function stealMoleTargetTile(tileIndex) {
     tileEl.classList.remove("mole-shake");
     tileEl.classList.add("mole-stolen");
     showMoleStink(tileEl);
-  }, scaleMoleTimingMs(GAME_CONFIG.moleStealShakeMs, 100));
+  }, GAME_CONFIG.moleStealShakeMs);
 }
 
 function resetActiveMoleAttack() {
@@ -2468,16 +2394,16 @@ async function animateMoleRunnerDown({ hit = false } = {}) {
     moleRunner.style.transform = "translateY(0%) scaleX(1)";
     moleRunner.classList.remove("hit-exit");
     moleRunner.classList.add("hit");
-    await wait(scaleMoleTimingMs(GAME_CONFIG.moleHitImpactMs, 120));
+    await wait(GAME_CONFIG.moleHitImpactMs);
     moleRunner.classList.remove("hit");
     moleRunner.classList.add("hit-exit");
-    await wait(scaleMoleTimingMs(GAME_CONFIG.moleExitMs, 90));
+    await wait(GAME_CONFIG.moleExitMs);
     hideMoleRunner(true);
     return;
   }
 
   moleRunner.classList.remove("hit", "hit-exit");
-  const exitMs = scaleMoleTimingMs(GAME_CONFIG.moleExitMs, 90);
+  const exitMs = GAME_CONFIG.moleExitMs;
   moleRunner.style.transition = `transform ${exitMs}ms ease, opacity ${exitMs}ms ease`;
   moleRunner.style.transform = "translateY(62%) scaleX(-1)";
   moleRunner.style.opacity = "0";
@@ -2572,13 +2498,10 @@ async function triggerMoleTileAttack() {
   moleActiveTileIndex = tileIndex;
   moleAttackTapped = false;
   const isSearchTile = !moleCurrentAttackIsPreview && !moleAttackTargetIsStealable;
-  const tapWindowMs = scaleMoleTimingMs(
-    isSearchTile
-      ? GAME_CONFIG.moleSearchTapWindowMs
-      : GAME_CONFIG.moleTapWindowMs,
-    isSearchTile ? 90 : 120
-  );
-  const riseMs = scaleMoleTimingMs(GAME_CONFIG.molePopupRiseMs, 80);
+  const tapWindowMs = isSearchTile
+    ? GAME_CONFIG.moleSearchTapWindowMs
+    : GAME_CONFIG.moleTapWindowMs;
+  const riseMs = GAME_CONFIG.molePopupRiseMs;
 
   const tileMetrics = getMoleTileMetrics(tileIndex);
   if (!tileMetrics) {
@@ -2621,7 +2544,7 @@ async function triggerMoleTileAttack() {
     }
 
     stealMoleTargetTile(tileIndex);
-    await wait(scaleMoleTimingMs(GAME_CONFIG.moleStealShakeMs, 100));
+    await wait(GAME_CONFIG.moleStealShakeMs);
     await animateMoleRunnerDown();
     finishMoleAttack({
       scheduleRepeat: moleEventBurstActive,
@@ -3408,12 +3331,6 @@ introStartLevel5Btn?.addEventListener("click", () => {
 
 languageToggle?.addEventListener("click", handleLanguageToggleClick);
 landingLanguageToggle?.addEventListener("click", handleLanguageToggleClick);
-moleSpeedSlider?.addEventListener("input", () => {
-  setMoleSpeedPercent(Number(moleSpeedSlider.value), { persist: true });
-});
-moleSpeedSlider?.addEventListener("change", () => {
-  setMoleSpeedPercent(Number(moleSpeedSlider.value), { persist: true });
-});
 
 muteToggle?.addEventListener("click", () => {
   if (!muteControlUnlocked) return;
@@ -3531,7 +3448,6 @@ window.addEventListener("focus", () => {
   }
 });
 
-setMoleSpeedPercent(getStoredMoleSpeedPercent());
 setCurrentLanguage(getStoredPreferredLanguage() || detectPreferredLanguage());
 
 window.addEventListener("languagechange", () => {
