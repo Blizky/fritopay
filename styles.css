@@ -920,7 +920,7 @@ body {
   padding: 0;
   text-align: center;
   overflow: hidden;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .overlay-panel.home-screen::before {
@@ -1106,7 +1106,7 @@ body {
   border: 0;
   background: transparent;
   box-shadow: none;
-  filter: drop-shadow(0 18px 28px rgba(24, 13, 10, 0.42));
+  position: relative;
 }
 
 .landing-language-toggle {
@@ -1118,6 +1118,7 @@ body {
   gap: 6px;
   z-index: 2;
   filter: drop-shadow(0 10px 18px rgba(24, 13, 10, 0.48));
+  pointer-events: auto;
 }
 
 .landing-language-toggle::before {
