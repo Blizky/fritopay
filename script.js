@@ -11,6 +11,10 @@ const GAME_CONFIG = {
   startingCats: 5,
   // How many seconds the player gets in round 1.
   startingTimeSeconds: 8,
+  // How many seconds the player gets in round 1 on Easy mode.
+  easyModeStartingTimeSeconds: 10,
+  // Extra seconds Easy mode grants after each completed round.
+  easyModeRoundBonusSeconds: 2,
   // How many new cat targets get added after a perfect rescue.
   catsAddedPerRound: 1,
   // Time bonus for rescuing every cat in the round.
@@ -115,6 +119,10 @@ const GAME_CONFIG = {
   moleRound10To14Chance: 0.8,
   // Chance that the mole appears once during round 15 and beyond.
   moleRound15PlusChance: 0.9,
+  // The mole can only start this many event bursts in one round.
+  moleMaxEventsPerRound: 2,
+  // The second mole event uses this share of the normal round chance.
+  moleSecondEventChanceMultiplier: 0.5,
   // How long a mole event lasts during rounds 5 through 9.
   moleRound5To9EventDurationMs: 4000,
   // How long a mole event lasts during rounds 10 through 14.
@@ -135,12 +143,16 @@ const GAME_CONFIG = {
   moleFollowupEventDelayMinMs: 1000,
   // Latest delay before another mole event can begin after one ends.
   moleFollowupEventDelayMaxMs: 2000,
+  // The mole cannot start a new popup once the round is below this many seconds.
+  moleMinimumStartTimeRemainingSeconds: 3,
   // Chance that a mole attack targets a cat tile first.
   moleCatTargetChance: 0.25,
   // Time for the mole to pop up over a tile.
   molePopupRiseMs: 250,
   // How long the player gets to whack the mole once it is up before it steals the tile.
-  moleTapWindowMs: 500,
+  moleTapWindowMs: 800,
+  // How long the player gets to whack the mole on Easy mode before it steals the tile.
+  easyModeMoleTapWindowMs: 1000,
   // Fully-up window while the mole is visible on a non-target search tile.
   moleSearchTapWindowMs: 350,
   // How long the hit flash and shake stays on the mole before it disappears.
@@ -253,7 +265,7 @@ const startScreenText = document.getElementById("startScreenText");
 const startTimeNote = document.getElementById("startTimeNote");
 const playBtn = document.getElementById("playBtn");
 const startBtn = document.getElementById("startBtn");
-const landingStartLevel5Btn = document.getElementById("landingStartLevel5Btn");
+const easyModeBtn = document.getElementById("easyModeBtn");
 const clearCacheBtn = document.getElementById("clearCacheBtn");
 const timeoutFlash = document.getElementById("timeoutFlash");
 
@@ -293,6 +305,7 @@ let round = GAME_CONFIG.startingRound;
 let targetCats = GAME_CONFIG.startingCats;
 let roundTime = GAME_CONFIG.startingTimeSeconds;
 let remainingTime = roundTime;
+let currentGameMode = "normal";
 let timerInterval = null;
 let reviewInProgress = false;
 let tiles = [];
@@ -313,6 +326,7 @@ let moleNextEventStartsAt = 0;
 let moleSwapInProgress = false;
 let pendingReviewAfterMole = false;
 let moleAttacksTriggeredThisRound = 0;
+let moleEventsStartedThisRound = 0;
 let moleEventBurstActive = false;
 let moleEventEndsAt = 0;
 let moleCurrentAttackIsPreview = false;
@@ -327,7 +341,7 @@ let clockTilesSelectedThisRound = 0;
 let cassetteTilesSelectedThisRound = 0;
 let activeRoundBonusChallenge = null;
 let upcomingRoundBonusChallenge = null;
-let stolenRoundBonusEmojis = new Set();
+let selectedRoundBonusEmojisAtRoundEnd = new Set();
 let currentSpecialOfferOptions = [];
 let currentSpecialOfferKind = "trap";
 let currentSpecialOfferSellerImage = "images/racoon.png";
@@ -378,18 +392,16 @@ const COPY = {
     rescuedCats: value => `Rescued cats: ${value}`,
     selectedTiles: value => `Selected tiles: ${value}`,
     splashIntro: () => `
-      Frito the Chihuahua<br>
-      <strong>don't like that cats</strong><br>
-      are bigger than him 😹<br><br>
-      He wan't to capture all the cats<br>
-      and put them on a 🚀 rocket 😧<br><br>
-      <strong>YOU NEED TO RESCUE THEM 🙀</strong>
+      Frito is small. Cats are bigger. Frito doesn't like.<br><br>
+      He made a rocket. Will capture all cats. Send them to space.<br><br>
+      <strong>YOU NEED TO RESCUE THE CATS!</strong>
     `,
     splashTimeNotice: value => `You have ${value} second${value === 1 ? "" : "s"} to find all the cats.`,
     freeHairballWon: "You won a free hairball!",
     perfectRescueTimeWon: value => `You won +${value} seconds.`,
     play: "Play",
     startPlaying: "Start playing",
+    easyMode: "Easy mode",
     jumpToLevel: value => `Jump to level ${value}`,
     clearCache: "Clear cache",
     timeout: "Time's up",
@@ -407,7 +419,7 @@ const COPY = {
     hairballs: value => `Hairballs: ${value}`,
     nextRoundTimeTitle: "Time for next round",
     roundBonusTitle: "Special Bonus",
-    nextRoundObjective: value => `Resque all the cats in ${value} second${value === 1 ? "" : "s"}`,
+    nextRoundObjective: value => `Rescue all the cats in ${value} second${value === 1 ? "" : "s"}`,
     specialBonusLine: reward => `Special bonus: ${reward}`,
     specialBonusRewardTime: value => `+${value} second${value === 1 ? "" : "s"}`,
     specialBonusRewardHairballs: value => `${value} Hairball${value === 1 ? "" : "s"}`,
@@ -490,6 +502,7 @@ const COPY = {
     perfectRescueTimeWon: value => `Ganaste +${value} segundos.`,
     play: "Jugar",
     startPlaying: "Empezar a jugar",
+    easyMode: "Modo fácil",
     jumpToLevel: value => `Ir al nivel ${value}`,
     clearCache: "Borrar cache",
     timeout: "Se acabó el tiempo",
@@ -578,6 +591,30 @@ function copy(key, ...args) {
   return typeof entry === "function" ? entry(...args) : entry;
 }
 
+function isEasyMode(mode = currentGameMode) {
+  return mode === "easy";
+}
+
+function setGameMode(mode = "normal") {
+  currentGameMode = isEasyMode(mode) ? "easy" : "normal";
+}
+
+function getStartingTimeSeconds(mode = currentGameMode) {
+  return isEasyMode(mode)
+    ? GAME_CONFIG.easyModeStartingTimeSeconds
+    : GAME_CONFIG.startingTimeSeconds;
+}
+
+function getModeRoundTimeBonusSeconds(mode = currentGameMode) {
+  return isEasyMode(mode) ? GAME_CONFIG.easyModeRoundBonusSeconds : 0;
+}
+
+function getMoleTapWindowMs(mode = currentGameMode) {
+  return isEasyMode(mode)
+    ? GAME_CONFIG.easyModeMoleTapWindowMs
+    : GAME_CONFIG.moleTapWindowMs;
+}
+
 function normalizeLanguageCode(value) {
   if (typeof value !== "string") return "";
   return value.trim().toLowerCase().split("-")[0];
@@ -639,10 +676,11 @@ function clearStoredProgress() {
 
 function buildSimulatedStartState(startRound) {
   const safeStartRound = clamp(startRound, GAME_CONFIG.startingRound, 999);
+  const startingTimeSeconds = getStartingTimeSeconds();
   const simulatedState = {
     round: GAME_CONFIG.startingRound,
     targetCats: GAME_CONFIG.startingCats,
-    roundTime: GAME_CONFIG.startingTimeSeconds,
+    roundTime: startingTimeSeconds,
     totalHairballs: 0,
     totalScore: 0,
     totalRescuedCats: 0,
@@ -654,7 +692,7 @@ function buildSimulatedStartState(startRound) {
     currentTrapTierIndex: 0,
     diamondTrapFailed: false,
     trapInventory: [],
-    nextRoundTime: GAME_CONFIG.startingTimeSeconds,
+    nextRoundTime: startingTimeSeconds,
     nextRoundCats: GAME_CONFIG.startingCats
   };
 
@@ -665,7 +703,11 @@ function buildSimulatedStartState(startRound) {
     simulatedState.totalHairballs += 1;
 
     const nextRoundNumber = completedRound + 1;
-    const nextRoundTime = simulatedState.roundTime + GAME_CONFIG.perfectRescueBonusSeconds;
+    const nextRoundTime = (
+      simulatedState.roundTime +
+      GAME_CONFIG.perfectRescueBonusSeconds +
+      getModeRoundTimeBonusSeconds()
+    );
     const nextRoundCats = Math.min(
       simulatedState.targetCats + GAME_CONFIG.catsAddedPerRound,
       getBoardSize(nextRoundNumber).tileCount
@@ -724,6 +766,7 @@ function applySimulatedStartState(startRound) {
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
   moleAttacksTriggeredThisRound = 0;
+  moleEventsStartedThisRound = 0;
   moleEventBurstActive = false;
   moleEventEndsAt = 0;
   moleCurrentAttackIsPreview = false;
@@ -735,7 +778,7 @@ function applySimulatedStartState(startRound) {
   moleCatsLostThisRound = 0;
   currentRoundRescuableCats = targetCats;
   currentRoundMissedCats = 0;
-  stolenRoundBonusEmojis = new Set();
+  selectedRoundBonusEmojisAtRoundEnd = new Set();
   hideTrapOffer();
   hideMoleRunner(true);
   applyBoardLayout(round);
@@ -901,18 +944,21 @@ function renderRoundBonusPreview() {
   roundBonusPanel.classList.toggle("hidden", !shouldShow);
 }
 
-function getSelectedRoundBonusEmojis() {
+function isRoundBonusMatchTile(tile, challenge = activeRoundBonusChallenge) {
+  return Boolean(tile?.emoji && challenge?.emojis?.includes(tile.emoji));
+}
+
+function getSelectedRoundBonusEmojis(sourceTiles = tiles, challenge = activeRoundBonusChallenge) {
   const selectedBonusEmojis = new Set();
 
-  for (const tile of tiles) {
+  for (const tile of sourceTiles) {
     if (
       tile &&
-      tile.isRoundBonusItem &&
       tile.state === "idle" &&
       tile.selected &&
-      tile.roundBonusEmoji
+      isRoundBonusMatchTile(tile, challenge)
     ) {
-      selectedBonusEmojis.add(tile.roundBonusEmoji);
+      selectedBonusEmojis.add(tile.emoji);
     }
   }
 
@@ -924,11 +970,7 @@ function resolveRoundBonusReward() {
     return null;
   }
 
-  if (stolenRoundBonusEmojis.size > 0) {
-    return null;
-  }
-
-  const selectedBonusEmojis = getSelectedRoundBonusEmojis();
+  const selectedBonusEmojis = selectedRoundBonusEmojisAtRoundEnd;
 
   if (selectedBonusEmojis.size !== activeRoundBonusChallenge.emojis.length) {
     return null;
@@ -1224,13 +1266,16 @@ function tryEnsureAudio() {
   ensureAudio();
 }
 
-function startFreshGame() {
+function startFreshGame(mode = "normal") {
   tryEnsureAudio();
+  setGameMode(mode);
+  resetGameState();
   beginRound();
 }
 
-function startSimulatedGame(startRound) {
+function startSimulatedGame(startRound, mode = currentGameMode) {
   tryEnsureAudio();
+  setGameMode(mode);
   applySimulatedStartState(startRound);
   beginRound();
 }
@@ -1733,9 +1778,7 @@ function buildRoundData() {
     if (index === clockIndex) return buildTileData("clock");
     if (index === yarnIndex) return buildTileData("yarn");
     if (index === cassetteIndex) return buildTileData("cassette");
-    return buildTileData("other", {
-      excludedOtherEmojis: challengeEmojis
-    });
+    return buildTileData("other");
   });
 }
 
@@ -1843,7 +1886,7 @@ function createBoard() {
   currentRoundRescuableCats = targetCats;
   currentRoundMissedCats = 0;
   yarnTilesSelectedThisRound = 0;
-  stolenRoundBonusEmojis = new Set();
+  selectedRoundBonusEmojisAtRoundEnd = new Set();
   pendingReviewAfterMole = false;
   if (pickedLabel) {
     pickedLabel.textContent = copy("selectedTiles", 0);
@@ -1875,12 +1918,14 @@ function updateTopUI() {
 }
 
 function updateStartScreenText() {
+  const startingTimeSeconds = getStartingTimeSeconds();
+
   if (startScreenText) {
-    startScreenText.innerHTML = copy("splashIntro", GAME_CONFIG.startingTimeSeconds);
+    startScreenText.innerHTML = copy("splashIntro", startingTimeSeconds);
   }
 
   if (startTimeNote) {
-    startTimeNote.textContent = copy("splashTimeNotice", GAME_CONFIG.startingTimeSeconds);
+    startTimeNote.textContent = copy("splashTimeNotice", startingTimeSeconds);
   }
 }
 
@@ -1889,9 +1934,10 @@ function resetGameState() {
   clearMoleRepeatTimeout();
   stopRoundSoundtrack();
   applyStoredProgress();
+  const startingTimeSeconds = getStartingTimeSeconds();
   round = GAME_CONFIG.startingRound;
   targetCats = GAME_CONFIG.startingCats;
-  roundTime = GAME_CONFIG.startingTimeSeconds;
+  roundTime = startingTimeSeconds;
   remainingTime = roundTime;
   timerInterval = null;
   reviewInProgress = false;
@@ -1909,6 +1955,7 @@ function resetGameState() {
   moleSwapInProgress = false;
   pendingReviewAfterMole = false;
   moleAttacksTriggeredThisRound = 0;
+  moleEventsStartedThisRound = 0;
   moleEventBurstActive = false;
   moleEventEndsAt = 0;
   moleCurrentAttackIsPreview = false;
@@ -1923,7 +1970,7 @@ function resetGameState() {
   cassetteTilesSelectedThisRound = 0;
   activeRoundBonusChallenge = null;
   upcomingRoundBonusChallenge = null;
-  stolenRoundBonusEmojis = new Set();
+  selectedRoundBonusEmojisAtRoundEnd = new Set();
   earnedHairballThisRound = false;
   yarnHairballsEarnedThisRound = 0;
   yarnTilesSelectedThisRound = 0;
@@ -2048,8 +2095,8 @@ function updateLanguageUI() {
   timeoutFlash.textContent = copy("timeout");
   playBtn.textContent = copy("play");
   startBtn.textContent = copy("startPlaying");
-  if (landingStartLevel5Btn) {
-    landingStartLevel5Btn.textContent = copy("jumpToLevel", 5);
+  if (easyModeBtn) {
+    easyModeBtn.textContent = copy("easyMode");
   }
   clearCacheBtn.textContent = copy("clearCache");
   renderTrapInventory();
@@ -2100,6 +2147,7 @@ function setOverlayPanelVisible(panel, visible) {
 }
 
 function showHomeScreen() {
+  setGameMode("normal");
   resetGameState();
   createBoard();
   updateTopUI();
@@ -2145,6 +2193,24 @@ function getMoleRoundFirstChance(roundNumber = round) {
   return 0;
 }
 
+function getMoleEventChance(roundNumber = round, appearanceNumber = moleEventsStartedThisRound + 1) {
+  const baseChance = getMoleRoundFirstChance(roundNumber);
+
+  if (appearanceNumber <= 1) {
+    return baseChance;
+  }
+
+  if (appearanceNumber === 2) {
+    return baseChance * GAME_CONFIG.moleSecondEventChanceMultiplier;
+  }
+
+  return 0;
+}
+
+function canStartAnotherMoleEvent() {
+  return moleEventsStartedThisRound < GAME_CONFIG.moleMaxEventsPerRound;
+}
+
 function getMoleEventDurationMs(roundNumber = round) {
   if (roundNumber >= 15) {
     return GAME_CONFIG.moleRound15PlusEventDurationMs;
@@ -2175,12 +2241,23 @@ function getMoleEventStartDelayMs({ firstEvent = false } = {}) {
   );
 }
 
+function hasMinimumTimeForMoleStart(timeRemaining = remainingTime) {
+  return timeRemaining >= GAME_CONFIG.moleMinimumStartTimeRemainingSeconds;
+}
+
 function canScheduleMoleEventAfterDelay(delayMs) {
-  if (reviewInProgress || gameOver || pendingReviewAfterMole || remainingTime <= 0) {
+  if (
+    reviewInProgress ||
+    gameOver ||
+    pendingReviewAfterMole ||
+    remainingTime <= 0 ||
+    !hasMinimumTimeForMoleStart()
+  ) {
     return false;
   }
 
-  return remainingTime * 1000 > delayMs;
+  const remainingAfterDelayMs = (remainingTime * 1000) - delayMs;
+  return remainingAfterDelayMs >= (GAME_CONFIG.moleMinimumStartTimeRemainingSeconds * 1000);
 }
 
 function maybeScheduleMoleEvent({ firstEvent = false } = {}) {
@@ -2195,12 +2272,17 @@ function maybeScheduleMoleEvent({ firstEvent = false } = {}) {
     return false;
   }
 
+  if (!isPreviewEvent && !canStartAnotherMoleEvent()) {
+    return false;
+  }
+
   const delayMs = getMoleEventStartDelayMs({ firstEvent });
   if (!canScheduleMoleEventAfterDelay(delayMs)) {
     return false;
   }
 
-  if (Math.random() >= getMoleRoundFirstChance(round)) {
+  const appearanceNumber = isPreviewEvent ? 1 : moleEventsStartedThisRound + 1;
+  if (Math.random() >= getMoleEventChance(round, appearanceNumber)) {
     return false;
   }
 
@@ -2242,6 +2324,11 @@ function scheduleMoleRepeatCheck(delayMs = GAME_CONFIG.moleRepeatDelayMs) {
       return;
     }
 
+    if (!hasMinimumTimeForMoleStart()) {
+      endMoleEvent();
+      return;
+    }
+
     if (!hasMoleEventTimeRemaining()) {
       endMoleEvent();
       return;
@@ -2254,6 +2341,7 @@ function scheduleMoleRepeatCheck(delayMs = GAME_CONFIG.moleRepeatDelayMs) {
 function prepareRoundHazards() {
   clearMoleRepeatTimeout();
   moleAttacksTriggeredThisRound = 0;
+  moleEventsStartedThisRound = 0;
   moleEventBurstActive = false;
   moleEventEndsAt = 0;
   moleCurrentAttackIsPreview = false;
@@ -2292,7 +2380,9 @@ function startTimer() {
       now >= moleNextEventStartsAt
     ) {
       moleNextEventStartsAt = 0;
-      triggerMoleTileAttack();
+      if (hasMinimumTimeForMoleStart() || round === GAME_CONFIG.molePreviewRound) {
+        triggerMoleTileAttack();
+      }
     }
 
     if (remainingTime <= 0) {
@@ -2567,9 +2657,6 @@ function stealMoleTargetTile(tileIndex) {
   if (isCatTile(tile)) {
     moleCatsLostThisRound += 1;
   }
-  if (tile.isRoundBonusItem && tile.roundBonusEmoji) {
-    stolenRoundBonusEmojis.add(tile.roundBonusEmoji);
-  }
   playTrack("moleSteal", { volume: 0.95 });
   tileEl.classList.remove("selected");
   tileEl.classList.add("locked", "mole-shake");
@@ -2761,17 +2848,30 @@ async function animateMolePreviewLevelFour() {
 
 async function triggerMoleTileAttack() {
   moleNextEventStartsAt = 0;
-  moleSwapInProgress = true;
-  moleAttacksTriggeredThisRound += 1;
   moleCurrentAttackIsPreview = round === GAME_CONFIG.molePreviewRound;
+
+  if (!moleCurrentAttackIsPreview && !hasMinimumTimeForMoleStart()) {
+    if (moleEventBurstActive) {
+      endMoleEvent();
+    }
+    return;
+  }
 
   if (moleCurrentAttackIsPreview) {
     moleEventBurstActive = false;
     moleEventEndsAt = 0;
   } else if (!hasMoleEventTimeRemaining()) {
+    if (!canStartAnotherMoleEvent()) {
+      return;
+    }
+
+    moleEventsStartedThisRound += 1;
     moleEventBurstActive = true;
     moleEventEndsAt = performance.now() + getMoleEventDurationMs(round);
   }
+
+  moleSwapInProgress = true;
+  moleAttacksTriggeredThisRound += 1;
 
   if (!moleCurrentAttackIsPreview && !moleMusicPlayer) {
     startMoleEventMusic();
@@ -2793,7 +2893,7 @@ async function triggerMoleTileAttack() {
   moleAttackTapped = false;
   const tapWindowMs = moleCurrentAttackIsPreview
     ? GAME_CONFIG.moleSearchTapWindowMs
-    : GAME_CONFIG.moleTapWindowMs;
+    : getMoleTapWindowMs();
   const riseMs = GAME_CONFIG.molePopupRiseMs;
 
   const tileMetrics = getMoleTileMetrics(tileIndex);
@@ -2861,6 +2961,7 @@ async function startReview() {
   const selectedIndexes = sortedSelectedIndexes();
   const tileEls = [...boardEl.children];
   const reviewStepDelay = getScaledReviewStepDelay();
+  selectedRoundBonusEmojisAtRoundEnd = getSelectedRoundBonusEmojis();
   rescuedThisRound = 0;
   bonusClockEarnedThisRound = false;
   clockTilesSelectedThisRound = 0;
@@ -2907,7 +3008,7 @@ async function startReview() {
       el.classList.remove("selected");
       el.classList.add("good");
       fanfare(el);
-    } else if (t.isRoundBonusItem && t.state === "idle") {
+    } else if (t.state === "idle" && isRoundBonusMatchTile(t)) {
       t.state = "bonus";
       t.selected = false;
       el.classList.remove("selected");
@@ -3391,6 +3492,7 @@ function showResult() {
   const missedCats = Math.max(0, rescuableCats - rescuedThisRound);
   const missedCatPenaltyEnabled = round >= GAME_CONFIG.missedCatPenaltyStartsAtRound;
   const perfectRescue = isPerfectRescueThisRound();
+  const modeTimeBonus = getModeRoundTimeBonusSeconds();
   const wrongTilePenalty = wrongTilesSelectedThisRound * GAME_CONFIG.invalidTilePenaltySeconds;
   let resultSpecialOfferOptions = [];
   let shouldRevealOffer = false;
@@ -3434,7 +3536,7 @@ function showResult() {
     totalHairballs += yarnHairballsEarnedThisRound;
   }
 
-  nextRoundTime = roundTime + delta + clockDelta;
+  nextRoundTime = roundTime + delta + clockDelta + modeTimeBonus;
   specialBonusReward = resolveRoundBonusReward();
   specialBonusPoints = specialBonusReward ? GAME_CONFIG.roundBonusScorePoints : 0;
   gameOver = nextRoundTime < GAME_CONFIG.minimumNextRoundTimeSeconds;
@@ -3456,7 +3558,7 @@ function showResult() {
     rescuable: rescuableCats,
     missed: missedCats,
     moleLost: moleCatsLostThisRound,
-    timeDelta: delta + clockDelta,
+    timeDelta: delta + clockDelta + modeTimeBonus,
     hairballsEarned: (earnedHairballThisRound ? 1 : 0) + yarnHairballsEarnedThisRound,
     scoreEarned: currentRoundScore,
     rescuedPoints: rescuedThisRound,
@@ -3580,10 +3682,12 @@ playBtn?.addEventListener("click", () => {
   showIntroScreen();
 });
 
-startBtn?.addEventListener("click", startFreshGame);
+startBtn?.addEventListener("click", () => {
+  startFreshGame("normal");
+});
 
-landingStartLevel5Btn?.addEventListener("click", () => {
-  startSimulatedGame(5);
+easyModeBtn?.addEventListener("click", () => {
+  startFreshGame("easy");
 });
 
 clearCacheBtn?.addEventListener("click", async () => {
