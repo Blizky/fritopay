@@ -229,18 +229,14 @@ const languageToggle = document.getElementById("languageToggle");
 const muteToggle = document.getElementById("muteToggle");
 const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
-const simulatedStartList = document.getElementById("simulatedStartList");
 
 const landingPanel = document.getElementById("landingPanel");
 const landingLanguageToggle = document.getElementById("landingLanguageToggle");
-const splashPanel = document.getElementById("splashPanel");
-const splashText = document.getElementById("splashText");
-const introTimeNote = document.getElementById("introTimeNote");
+const startScreenText = document.getElementById("startScreenText");
+const startTimeNote = document.getElementById("startTimeNote");
 const playBtn = document.getElementById("playBtn");
 const landingStartLevel5Btn = document.getElementById("landingStartLevel5Btn");
 const clearCacheBtn = document.getElementById("clearCacheBtn");
-const startBtn = document.getElementById("startBtn");
-const introStartLevel5Btn = document.getElementById("introStartLevel5Btn");
 const timeoutFlash = document.getElementById("timeoutFlash");
 
 const resultPanel = document.getElementById("resultPanel");
@@ -350,7 +346,6 @@ const activeAudioPlayers = new Set();
 const pendingUiUnlockAnimations = new Set();
 const LANGUAGE_STORAGE_KEY = "fritopay-language";
 const PROGRESS_STORAGE_KEY = "fritopay-progress";
-const SIMULATED_START_ROUNDS = [5, 10, 15];
 
 const COPY = {
   en: {
@@ -373,7 +368,6 @@ const COPY = {
     startPlaying: "Start playing",
     jumpToLevel: value => `Jump to level ${value}`,
     clearCache: "Clear cache",
-    startRescuingCats: "Start rescuing cats",
     timeout: "Time's up",
     roundOver: "Round Over",
     specialOffer: "Special Offer",
@@ -465,7 +459,6 @@ const COPY = {
     startPlaying: "Empezar a jugar",
     jumpToLevel: value => `Ir al nivel ${value}`,
     clearCache: "Borrar cache",
-    startRescuingCats: "Empezar a rescatar gatos",
     timeout: "Se acabó el tiempo",
     roundOver: "Fin de ronda",
     specialOffer: "Oferta especial",
@@ -878,7 +871,7 @@ function getTrapTierLabel(tierId, plural = false) {
 }
 
 function isPreGameScreenVisible() {
-  return landingPanel.classList.contains("show") || splashPanel.classList.contains("show");
+  return landingPanel.classList.contains("show");
 }
 
 function getBoardGrowth(roundNumber = round) {
@@ -1114,15 +1107,33 @@ function applyBoardLayout(roundNumber = round) {
 }
 
 function ensureAudio() {
-  if (!audioCtx) {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (AudioContextClass) {
-      audioCtx = new AudioContextClass();
+  try {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        audioCtx = new AudioContextClass();
+      }
     }
-  }
-  if (audioCtx && audioCtx.state === "suspended") {
-    audioCtx.resume();
-  }
+
+    if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume().catch(() => {});
+    }
+  } catch {}
+}
+
+function tryEnsureAudio() {
+  ensureAudio();
+}
+
+function startFreshGame() {
+  tryEnsureAudio();
+  beginRound();
+}
+
+function startSimulatedGame(startRound) {
+  tryEnsureAudio();
+  applySimulatedStartState(startRound);
+  beginRound();
 }
 
 function stopAudioPlayer(player) {
@@ -1136,16 +1147,20 @@ function playAudioSource(src, { loop = false, volume = 1 } = {}) {
   if (isMuted) return null;
   if (!src) return null;
 
-  const player = new Audio(src);
-  player.preload = "auto";
-  player.loop = loop;
-  player.volume = volume;
-  activeAudioPlayers.add(player);
-  player.addEventListener("ended", () => {
-    activeAudioPlayers.delete(player);
-  });
-  player.play().catch(() => {});
-  return player;
+  try {
+    const player = new Audio(src);
+    player.preload = "auto";
+    player.loop = loop;
+    player.volume = volume;
+    activeAudioPlayers.add(player);
+    player.addEventListener("ended", () => {
+      activeAudioPlayers.delete(player);
+    });
+    player.play().catch(() => {});
+    return player;
+  } catch {
+    return null;
+  }
 }
 
 function playTrack(name, { loop = false, volume = 1 } = {}) {
@@ -1691,10 +1706,13 @@ function updateTopUI() {
   updateBonusTileHints();
 }
 
-function updateSplashText() {
-  splashText.innerHTML = copy("splashIntro", GAME_CONFIG.startingTimeSeconds);
-  if (introTimeNote) {
-    introTimeNote.textContent = copy("splashTimeNotice", GAME_CONFIG.startingTimeSeconds);
+function updateStartScreenText() {
+  if (startScreenText) {
+    startScreenText.innerHTML = copy("splashIntro", GAME_CONFIG.startingTimeSeconds);
+  }
+
+  if (startTimeNote) {
+    startTimeNote.textContent = copy("splashTimeNotice", GAME_CONFIG.startingTimeSeconds);
   }
 }
 
@@ -1818,16 +1836,6 @@ function updateLanguageToggle() {
   });
 }
 
-function renderSimulatedStartButtons() {
-  if (!simulatedStartList) return;
-
-  simulatedStartList.innerHTML = SIMULATED_START_ROUNDS.map(roundNumber => `
-    <button class="simulated-start-btn" type="button" data-round="${roundNumber}">
-      ${copy("jumpToLevel", roundNumber)}
-    </button>
-  `).join("");
-}
-
 function renderTrapInventory() {
   if (!trapInventoryEl) return;
 
@@ -1864,11 +1872,6 @@ function updateLanguageUI() {
     landingStartLevel5Btn.textContent = copy("jumpToLevel", 5);
   }
   clearCacheBtn.textContent = copy("clearCache");
-  startBtn.textContent = copy("startRescuingCats");
-  if (introStartLevel5Btn) {
-    introStartLevel5Btn.textContent = copy("jumpToLevel", 5);
-  }
-  renderSimulatedStartButtons();
   renderTrapInventory();
   trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
   trapOfferDismissBtn.textContent = copy("dismiss");
@@ -1876,7 +1879,7 @@ function updateLanguageUI() {
   exitBtn.textContent = gameOver ? copy("startOver") : copy("exit");
 
   updateTopUI();
-  updateSplashText();
+  updateStartScreenText();
   updatePickedCount();
   updateSummaryTexts();
   updateScoreDisplay();
@@ -1920,24 +1923,13 @@ function showHomeScreen() {
   resetGameState();
   createBoard();
   updateTopUI();
-  updateSplashText();
+  updateStartScreenText();
   timeoutFlash.classList.remove("show");
   resultPanel.classList.remove("show");
   setOverlayPanelVisible(landingPanel, true);
-  setOverlayPanelVisible(splashPanel, false);
   gameEl.classList.add("home-screen-active");
   nextBtn.classList.remove("hidden");
   exitBtn.classList.add("hidden");
-  updateLanguageUI();
-  playHomeScreenAudio();
-}
-
-function showIntroScreen() {
-  setOverlayPanelVisible(landingPanel, false);
-  setOverlayPanelVisible(splashPanel, true);
-  timeoutFlash.classList.remove("show");
-  resultPanel.classList.remove("show");
-  gameEl.classList.add("home-screen-active");
   updateLanguageUI();
   playHomeScreenAudio();
 }
@@ -3250,9 +3242,8 @@ function showResult() {
   }
 }
 
-async function beginRound() {
+function beginRound() {
   setOverlayPanelVisible(landingPanel, false);
-  setOverlayPanelVisible(splashPanel, false);
   gameEl.classList.remove("home-screen-active");
   resultPanel.classList.remove("show");
   timeoutFlash.classList.remove("show");
@@ -3295,44 +3286,14 @@ function handleMoleRunnerWhack(event) {
   moleAttackTapped = true;
 }
 
-function startIntroFlow() {
-  ensureAudio();
-  showIntroScreen();
-}
-
-playBtn?.addEventListener("click", startIntroFlow);
+playBtn?.addEventListener("click", startFreshGame);
 
 landingStartLevel5Btn?.addEventListener("click", () => {
-  ensureAudio();
-  applySimulatedStartState(5);
-  beginRound();
-});
-
-simulatedStartList?.addEventListener("click", event => {
-  const button = event.target.closest(".simulated-start-btn");
-  if (!button) return;
-
-  const simulatedRound = Number(button.dataset.round);
-  if (!SIMULATED_START_ROUNDS.includes(simulatedRound)) return;
-
-  ensureAudio();
-  applySimulatedStartState(simulatedRound);
-  beginRound();
+  startSimulatedGame(5);
 });
 
 clearCacheBtn?.addEventListener("click", async () => {
   await clearBrowserDataAndReload();
-});
-
-startBtn?.addEventListener("click", () => {
-  ensureAudio();
-  beginRound();
-});
-
-introStartLevel5Btn?.addEventListener("click", () => {
-  ensureAudio();
-  applySimulatedStartState(5);
-  beginRound();
 });
 
 languageToggle?.addEventListener("click", handleLanguageToggleClick);

@@ -1098,16 +1098,33 @@ body {
   display: none;
 }
 
-.home-screen-card-landing {
-  width: auto;
-  max-width: none;
-  margin-top: clamp(180px, 24vh, 270px);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+.start-screen-card {
+  width: min(100%, 420px);
+  gap: 18px;
+  margin-top: 0;
+  padding:
+    max(40px, env(safe-area-inset-top) + 28px)
+    24px
+    max(40px, env(safe-area-inset-bottom) + 28px);
   position: relative;
   z-index: 1001;
+}
+
+.start-screen-card .overlay-text {
+  max-width: 100%;
+  margin-bottom: 0;
+  font-size: clamp(1.92rem, 6.6vw, 2.72rem);
+  line-height: 1.38;
+}
+
+.start-screen-card .overlay-text strong {
+  font-size: inherit;
+}
+
+.start-screen-card .cta-btn,
+.start-screen-card .simulated-start-btn,
+.start-screen-card .cache-reset-btn {
+  width: min(100%, 280px);
 }
 
 .landing-language-toggle {
@@ -1148,13 +1165,6 @@ body {
   touch-action: manipulation;
 }
 
-.simulated-start-list {
-  width: min(100%, 320px);
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
 .simulated-start-btn {
   width: 100%;
   border: 2px solid rgba(235, 220, 181, 0.94);
@@ -1175,14 +1185,6 @@ body {
   transform: scale(0.98);
 }
 
-.intro-start-level-btn {
-  width: min(100%, 280px);
-}
-
-.landing-start-level-btn {
-  width: min(100%, 280px);
-}
-
 #landingPanel .cta-btn-start {
   box-shadow:
     0 0 0 4px #f1d86d,
@@ -1200,35 +1202,6 @@ body {
 
 .cache-reset-btn:active {
   transform: scale(0.98);
-}
-
-.intro-screen-card {
-  width: 100%;
-  max-width: none;
-  min-height: 100dvh;
-  margin-top: 0;
-  padding:
-    max(40px, env(safe-area-inset-top) + 36px)
-    28px
-    max(40px, env(safe-area-inset-bottom) + 36px);
-  border-radius: 0;
-  justify-content: center;
-  gap: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 250, 244, 0.92) 0%, rgba(245, 229, 236, 0.92) 52%, rgba(233, 232, 245, 0.92) 100%);
-  border: 0;
-  box-shadow: none;
-}
-
-.intro-screen-card .overlay-text {
-  max-width: 460px;
-  margin-bottom: 0;
-  font-size: clamp(1.92rem, 6.6vw, 2.72rem);
-  line-height: 1.38;
-}
-
-.intro-screen-card .overlay-text strong {
-  font-size: inherit;
 }
 
 .intro-screen-note {
