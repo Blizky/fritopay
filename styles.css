@@ -1244,6 +1244,10 @@ body {
   transform: scale(0.98);
 }
 
+.intro-start-level-btn {
+  width: min(100%, 280px);
+}
+
 #landingPanel .cta-btn-start {
   box-shadow:
     0 0 0 4px #f1d86d,

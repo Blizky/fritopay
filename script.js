@@ -244,6 +244,7 @@ const introTimeNote = document.getElementById("introTimeNote");
 const playBtn = document.getElementById("playBtn");
 const clearCacheBtn = document.getElementById("clearCacheBtn");
 const startBtn = document.getElementById("startBtn");
+const introStartLevel5Btn = document.getElementById("introStartLevel5Btn");
 const timeoutFlash = document.getElementById("timeoutFlash");
 
 const resultPanel = document.getElementById("resultPanel");
@@ -1933,6 +1934,9 @@ function updateLanguageUI() {
   playBtn.textContent = copy("startPlaying");
   clearCacheBtn.textContent = copy("clearCache");
   startBtn.textContent = copy("startRescuingCats");
+  if (introStartLevel5Btn) {
+    introStartLevel5Btn.textContent = copy("jumpToLevel", 5);
+  }
   renderSimulatedStartButtons();
   renderTrapInventory();
   trapOffer.querySelector(".trap-offer-title").textContent = copy("specialOffer");
@@ -3381,6 +3385,12 @@ clearCacheBtn.addEventListener("click", async () => {
 
 startBtn.addEventListener("click", () => {
   ensureAudio();
+  beginRound();
+});
+
+introStartLevel5Btn?.addEventListener("click", () => {
+  ensureAudio();
+  applySimulatedStartState(5);
   beginRound();
 });
 
