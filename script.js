@@ -106,13 +106,13 @@ const GAME_CONFIG = {
   // Chance that the mole appears once during round 15 and beyond.
   moleRound15PlusChance: 0.9,
   // How long a mole event lasts during rounds 5 through 9.
-  moleRound5To9EventDurationMs: 2200,
+  moleRound5To9EventDurationMs: 2200 * 4,
   // How long a mole event lasts during rounds 10 through 14.
-  moleRound10To14EventDurationMs: 3000,
+  moleRound10To14EventDurationMs: 3000 * 4,
   // How long a mole event lasts during round 15 and beyond.
-  moleRound15PlusEventDurationMs: 4000,
+  moleRound15PlusEventDurationMs: 4000 * 4,
   // Wait this long after a mole attack before it can return in the same round.
-  moleRepeatDelayMs: 120,
+  moleRepeatDelayMs: 120 * 4,
   // Point in the round when the mole check happens.
   moleTriggerAtTimeRatio: 0.5,
   // Start making the mole trigger earlier from this round onward.
@@ -124,17 +124,17 @@ const GAME_CONFIG = {
   // Chance that a mole attack targets a cat tile first.
   moleCatTargetChance: 0.25,
   // Time for the mole to pop up over a tile.
-  molePopupRiseMs: 100,
+  molePopupRiseMs: 100 * 4,
   // How long the player gets to whack the mole once it is up on a cat-threat tile.
-  moleTapWindowMs: 180,
+  moleTapWindowMs: 180 * 4,
   // Shorter fully-up window while the mole is only scanning a non-cat tile.
-  moleSearchTapWindowMs: 110,
+  moleSearchTapWindowMs: 110 * 4,
   // How long the hit flash and shake stays on the mole before it disappears.
-  moleHitImpactMs: 200,
+  moleHitImpactMs: 200 * 4,
   // How long the tile shakes before a cat is marked as stolen.
-  moleStealShakeMs: 140,
+  moleStealShakeMs: 140 * 4,
   // How long the mole takes to duck away after an attack.
-  moleExitMs: 150
+  moleExitMs: 150 * 4
 };
 
 const CAT_EMOJIS = ["🐱", "🐈", "🐈‍⬛", "😺", "😸", "😻", "😹", "🙀", "😿", "😽", "😾", "😼"];
