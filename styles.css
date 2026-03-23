@@ -1137,6 +1137,56 @@ body {
   margin-top: 14px;
 }
 
+.mole-speed-tester {
+  width: min(100%, 320px);
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px 10px;
+  border: 2px solid rgba(235, 220, 181, 0.94);
+  border-radius: 20px;
+  background: rgba(255, 247, 231, 0.94);
+  box-shadow:
+    0 8px 14px rgba(24, 13, 10, 0.24),
+    inset 0 -2px 0 rgba(191, 161, 136, 0.14);
+}
+
+.mole-speed-header,
+.mole-speed-scale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mole-speed-label,
+.mole-speed-value {
+  color: #7a5a3d;
+  font-weight: 900;
+}
+
+.mole-speed-label {
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+}
+
+.mole-speed-value {
+  font-size: 0.88rem;
+}
+
+.mole-speed-slider {
+  width: 100%;
+  accent-color: #d88942;
+  cursor: pointer;
+}
+
+.mole-speed-scale {
+  color: #9a7757;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .simulated-start-btn {
   width: 100%;
   border: 2px solid rgba(235, 220, 181, 0.94);

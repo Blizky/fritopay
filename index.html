@@ -39,6 +39,25 @@
         <div class="home-screen-card home-screen-card-landing">
           <button class="cta-btn cta-btn-start" id="playBtn">Start playing</button>
           <div class="simulated-start-list" id="simulatedStartList"></div>
+          <div class="mole-speed-tester" id="moleSpeedTester">
+            <div class="mole-speed-header">
+              <span class="mole-speed-label" id="moleSpeedLabel">Mole Speed</span>
+              <span class="mole-speed-value" id="moleSpeedValue">100%</span>
+            </div>
+            <input
+              class="mole-speed-slider"
+              id="moleSpeedSlider"
+              type="range"
+              min="40"
+              max="180"
+              step="5"
+              value="50"
+            />
+            <div class="mole-speed-scale" aria-hidden="true">
+              <span id="moleSpeedSlowLabel">Slower</span>
+              <span id="moleSpeedFastLabel">Faster</span>
+            </div>
+          </div>
           <button class="cache-reset-btn" id="clearCacheBtn" type="button">Clear cache</button>
         </div>
         <div class="landing-language-toggle" id="landingLanguageToggle" aria-label="Language toggle">

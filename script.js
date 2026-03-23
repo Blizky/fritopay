@@ -227,6 +227,11 @@ const bottomExitBtn = document.getElementById("bottomExitBtn");
 const pickedLabel = document.getElementById("pickedLabel");
 const languageToggle = document.getElementById("languageToggle");
 const muteToggle = document.getElementById("muteToggle");
+const moleSpeedLabelEl = document.getElementById("moleSpeedLabel");
+const moleSpeedValueEl = document.getElementById("moleSpeedValue");
+const moleSpeedSlider = document.getElementById("moleSpeedSlider");
+const moleSpeedSlowLabelEl = document.getElementById("moleSpeedSlowLabel");
+const moleSpeedFastLabelEl = document.getElementById("moleSpeedFastLabel");
 const progressFill = document.getElementById("progressFill");
 const moleRunner = document.getElementById("moleRunner");
 const simulatedStartList = document.getElementById("simulatedStartList");
@@ -335,6 +340,7 @@ let currentRoundMissedCats = 0;
 let cassetteCount = 0;
 let isMuted = false;
 let wrongTilesSelectedThisRound = 0;
+let moleSpeedPercent = DEFAULT_MOLE_SPEED_PERCENT;
 let moleRepeatTimeoutId = null;
 let roundCountdownPlayed = false;
 let roundIntroPlayer = null;
@@ -348,7 +354,11 @@ const activeAudioPlayers = new Set();
 const pendingUiUnlockAnimations = new Set();
 const LANGUAGE_STORAGE_KEY = "fritopay-language";
 const PROGRESS_STORAGE_KEY = "fritopay-progress";
+const MOLE_SPEED_STORAGE_KEY = "fritopay-mole-speed";
 const SIMULATED_START_ROUNDS = [5, 10, 15];
+const DEFAULT_MOLE_SPEED_PERCENT = 50;
+const MIN_MOLE_SPEED_PERCENT = 40;
+const MAX_MOLE_SPEED_PERCENT = 180;
 
 const COPY = {
   en: {
@@ -370,6 +380,10 @@ const COPY = {
     perfectRescueTimeWon: value => `You won +${value} seconds.`,
     startPlaying: "Start playing",
     jumpToLevel: value => `Jump to level ${value}`,
+    moleSpeedLabel: "Mole Speed",
+    moleSpeedValue: value => `${value}%`,
+    slower: "Slower",
+    faster: "Faster",
     clearCache: "Clear cache",
     startRescuingCats: "Start rescuing cats",
     timeout: "Time's up",
@@ -462,6 +476,10 @@ const COPY = {
     perfectRescueTimeWon: value => `Ganaste +${value} segundos.`,
     startPlaying: "Empezar a jugar",
     jumpToLevel: value => `Ir al nivel ${value}`,
+    moleSpeedLabel: "Velocidad del topo",
+    moleSpeedValue: value => `${value}%`,
+    slower: "Más lento",
+    faster: "Más rápido",
     clearCache: "Borrar cache",
     startRescuingCats: "Empezar a rescatar gatos",
     timeout: "Se acabó el tiempo",
@@ -558,6 +576,61 @@ function getStoredPreferredLanguage() {
   } catch {
     return "";
   }
+}
+
+function clampMoleSpeedPercent(value) {
+  return clamp(
+    Math.round(Number.isFinite(value) ? value : DEFAULT_MOLE_SPEED_PERCENT),
+    MIN_MOLE_SPEED_PERCENT,
+    MAX_MOLE_SPEED_PERCENT
+  );
+}
+
+function getStoredMoleSpeedPercent() {
+  try {
+    return clampMoleSpeedPercent(Number(window.localStorage.getItem(MOLE_SPEED_STORAGE_KEY)));
+  } catch {
+    return DEFAULT_MOLE_SPEED_PERCENT;
+  }
+}
+
+function renderMoleSpeedControl() {
+  if (!moleSpeedSlider || !moleSpeedValueEl || !moleSpeedLabelEl) return;
+
+  moleSpeedLabelEl.textContent = copy("moleSpeedLabel");
+  moleSpeedValueEl.textContent = copy("moleSpeedValue", moleSpeedPercent);
+  moleSpeedSlider.value = String(moleSpeedPercent);
+
+  if (moleSpeedSlowLabelEl) {
+    moleSpeedSlowLabelEl.textContent = copy("slower");
+  }
+
+  if (moleSpeedFastLabelEl) {
+    moleSpeedFastLabelEl.textContent = copy("faster");
+  }
+}
+
+function setMoleSpeedPercent(value, { persist = false } = {}) {
+  const nextValue = clampMoleSpeedPercent(value);
+  const changed = nextValue !== moleSpeedPercent;
+  moleSpeedPercent = nextValue;
+  renderMoleSpeedControl();
+
+  if (persist) {
+    try {
+      window.localStorage.setItem(MOLE_SPEED_STORAGE_KEY, String(nextValue));
+    } catch {}
+  }
+
+  return changed;
+}
+
+function getMoleSpeedFactor() {
+  return moleSpeedPercent / 100;
+}
+
+function scaleMoleTimingMs(baseMs, minimumMs = 40) {
+  return Math.max(minimumMs, Math.round(baseMs / Math.max(0.01, getMoleSpeedFactor())));
 }
 
 function getDefaultStoredProgress() {
@@ -1900,6 +1973,7 @@ function updateLanguageUI() {
   updateBottomExitButton();
   updateMuteButton();
   updateLanguageToggle();
+  renderMoleSpeedControl();
 }
 
 function showHomeScreen() {
@@ -1950,15 +2024,15 @@ function getMoleRoundFirstChance(roundNumber = round) {
 
 function getMoleEventDurationMs(roundNumber = round) {
   if (roundNumber >= 15) {
-    return GAME_CONFIG.moleRound15PlusEventDurationMs;
+    return scaleMoleTimingMs(GAME_CONFIG.moleRound15PlusEventDurationMs, 1200);
   }
 
   if (roundNumber >= 10) {
-    return GAME_CONFIG.moleRound10To14EventDurationMs;
+    return scaleMoleTimingMs(GAME_CONFIG.moleRound10To14EventDurationMs, 1000);
   }
 
   if (roundNumber >= 5) {
-    return GAME_CONFIG.moleRound5To9EventDurationMs;
+    return scaleMoleTimingMs(GAME_CONFIG.moleRound5To9EventDurationMs, 900);
   }
 
   return 0;
@@ -2015,7 +2089,7 @@ function scheduleMoleRepeatCheck() {
     }
 
     triggerMoleTileAttack();
-  }, GAME_CONFIG.moleRepeatDelayMs);
+  }, scaleMoleTimingMs(GAME_CONFIG.moleRepeatDelayMs, 60));
 }
 
 function prepareRoundHazards() {
@@ -2273,7 +2347,7 @@ function markMoleHit(tileIndex) {
   tileEl.classList.remove("mole-hit-flash");
   void tileEl.offsetWidth;
   tileEl.classList.add("mole-hit-flash");
-  setTimeout(() => tileEl.classList.remove("mole-hit-flash"), 260);
+  setTimeout(() => tileEl.classList.remove("mole-hit-flash"), scaleMoleTimingMs(GAME_CONFIG.moleHitImpactMs, 120));
 }
 
 function showMoleStink(tileEl) {
@@ -2345,7 +2419,7 @@ function stealMoleTargetTile(tileIndex) {
     tileEl.classList.remove("mole-shake");
     tileEl.classList.add("mole-stolen");
     showMoleStink(tileEl);
-  }, GAME_CONFIG.moleStealShakeMs);
+  }, scaleMoleTimingMs(GAME_CONFIG.moleStealShakeMs, 100));
 }
 
 function resetActiveMoleAttack() {
@@ -2386,20 +2460,21 @@ async function animateMoleRunnerDown({ hit = false } = {}) {
     moleRunner.style.transform = "translateY(0%) scaleX(1)";
     moleRunner.classList.remove("hit-exit");
     moleRunner.classList.add("hit");
-    await wait(GAME_CONFIG.moleHitImpactMs);
+    await wait(scaleMoleTimingMs(GAME_CONFIG.moleHitImpactMs, 120));
     moleRunner.classList.remove("hit");
     moleRunner.classList.add("hit-exit");
-    await wait(GAME_CONFIG.moleExitMs);
+    await wait(scaleMoleTimingMs(GAME_CONFIG.moleExitMs, 90));
     hideMoleRunner(true);
     return;
   }
 
   moleRunner.classList.remove("hit", "hit-exit");
-  moleRunner.style.transition = `transform ${GAME_CONFIG.moleExitMs}ms ease, opacity ${GAME_CONFIG.moleExitMs}ms ease`;
+  const exitMs = scaleMoleTimingMs(GAME_CONFIG.moleExitMs, 90);
+  moleRunner.style.transition = `transform ${exitMs}ms ease, opacity ${exitMs}ms ease`;
   moleRunner.style.transform = "translateY(62%) scaleX(-1)";
   moleRunner.style.opacity = "0";
 
-  await wait(GAME_CONFIG.moleExitMs);
+  await wait(exitMs);
   hideMoleRunner(true);
 }
 
@@ -2489,9 +2564,13 @@ async function triggerMoleTileAttack() {
   moleActiveTileIndex = tileIndex;
   moleAttackTapped = false;
   const isSearchTile = !moleCurrentAttackIsPreview && !moleAttackTargetIsStealable;
-  const tapWindowMs = isSearchTile
-    ? GAME_CONFIG.moleSearchTapWindowMs
-    : GAME_CONFIG.moleTapWindowMs;
+  const tapWindowMs = scaleMoleTimingMs(
+    isSearchTile
+      ? GAME_CONFIG.moleSearchTapWindowMs
+      : GAME_CONFIG.moleTapWindowMs,
+    isSearchTile ? 90 : 120
+  );
+  const riseMs = scaleMoleTimingMs(GAME_CONFIG.molePopupRiseMs, 80);
 
   const tileMetrics = getMoleTileMetrics(tileIndex);
   if (!tileMetrics) {
@@ -2502,10 +2581,10 @@ async function triggerMoleTileAttack() {
 
   placeMoleRunnerAtTile(tileMetrics);
   void moleRunner.offsetWidth;
-  moleRunner.style.transition = `transform ${GAME_CONFIG.molePopupRiseMs}ms ease`;
+  moleRunner.style.transition = `transform ${riseMs}ms ease`;
   moleRunner.style.transform = "translateY(0%) scaleX(1)";
 
-  let phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.molePopupRiseMs);
+  let phaseResult = await waitForMoleAttackPhase(tileIndex, riseMs);
   if (phaseResult === "hit") {
     await resolveMoleHit(tileIndex);
     return;
@@ -2534,7 +2613,7 @@ async function triggerMoleTileAttack() {
     }
 
     stealMoleTargetTile(tileIndex);
-    await wait(GAME_CONFIG.moleStealShakeMs);
+    await wait(scaleMoleTimingMs(GAME_CONFIG.moleStealShakeMs, 100));
     await animateMoleRunnerDown();
     finishMoleAttack({
       scheduleRepeat: moleEventBurstActive,
@@ -3307,6 +3386,9 @@ startBtn.addEventListener("click", () => {
 
 languageToggle.addEventListener("click", handleLanguageToggleClick);
 landingLanguageToggle.addEventListener("click", handleLanguageToggleClick);
+moleSpeedSlider?.addEventListener("input", () => {
+  setMoleSpeedPercent(Number(moleSpeedSlider.value), { persist: true });
+});
 
 muteToggle.addEventListener("click", () => {
   if (!muteControlUnlocked) return;
@@ -3424,6 +3506,7 @@ window.addEventListener("focus", () => {
   }
 });
 
+setMoleSpeedPercent(getStoredMoleSpeedPercent());
 setCurrentLanguage(getStoredPreferredLanguage() || detectPreferredLanguage());
 
 window.addEventListener("languagechange", () => {
