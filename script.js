@@ -105,6 +105,12 @@ const GAME_CONFIG = {
   moleRound10To14Chance: 0.8,
   // Chance that the mole appears once during round 15 and beyond.
   moleRound15PlusChance: 0.9,
+  // How long a mole event lasts during rounds 5 through 9.
+  moleRound5To9EventDurationMs: 2200,
+  // How long a mole event lasts during rounds 10 through 14.
+  moleRound10To14EventDurationMs: 3000,
+  // How long a mole event lasts during round 15 and beyond.
+  moleRound15PlusEventDurationMs: 4000,
   // Wait this long after a mole attack before it can return in the same round.
   moleRepeatDelayMs: 120,
   // Point in the round when the mole check happens.
@@ -298,6 +304,7 @@ let moleSwapInProgress = false;
 let pendingReviewAfterMole = false;
 let moleAttacksTriggeredThisRound = 0;
 let moleEventBurstActive = false;
+let moleEventEndsAt = 0;
 let moleCurrentAttackIsPreview = false;
 let moleActiveTileIndex = -1;
 let moleAttackTargetIsCat = false;
@@ -732,6 +739,7 @@ function applySimulatedStartState(startRound) {
   pendingReviewAfterMole = false;
   moleAttacksTriggeredThisRound = 0;
   moleEventBurstActive = false;
+  moleEventEndsAt = 0;
   moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
@@ -1648,6 +1656,7 @@ function createBoard() {
   moleEventTriggeredThisRound = false;
   moleSwapInProgress = false;
   moleActiveTileIndex = -1;
+  moleEventEndsAt = 0;
   moleAttackTargetIsCat = false;
   moleAttackTapped = false;
   moleUsedTileIndexes.clear();
@@ -1718,6 +1727,7 @@ function resetGameState() {
   pendingReviewAfterMole = false;
   moleAttacksTriggeredThisRound = 0;
   moleEventBurstActive = false;
+  moleEventEndsAt = 0;
   moleCurrentAttackIsPreview = false;
   moleActiveTileIndex = -1;
   moleAttackTargetIsCat = false;
@@ -1942,6 +1952,22 @@ function getMoleRoundFirstChance(roundNumber = round) {
   return 0;
 }
 
+function getMoleEventDurationMs(roundNumber = round) {
+  if (roundNumber >= 15) {
+    return GAME_CONFIG.moleRound15PlusEventDurationMs;
+  }
+
+  if (roundNumber >= 10) {
+    return GAME_CONFIG.moleRound10To14EventDurationMs;
+  }
+
+  if (roundNumber >= 5) {
+    return GAME_CONFIG.moleRound5To9EventDurationMs;
+  }
+
+  return 0;
+}
+
 function getMoleTriggerRatio() {
   if (round < GAME_CONFIG.moleEarlierAttackStartsAtRound) {
     return GAME_CONFIG.moleTriggerAtTimeRatio;
@@ -1957,10 +1983,20 @@ function getMoleTriggerRatio() {
   );
 }
 
+function hasMoleEventTimeRemaining(now = performance.now()) {
+  return moleEventBurstActive && moleEventEndsAt > now;
+}
+
+function endMoleEvent() {
+  moleEventBurstActive = false;
+  moleEventEndsAt = 0;
+  restoreRoundBackgroundMusic();
+}
+
 function scheduleMoleRepeatCheck() {
   clearMoleRepeatTimeout();
 
-  if (!moleEventBurstActive || moleCurrentAttackIsPreview) {
+  if (!hasMoleEventTimeRemaining() || moleCurrentAttackIsPreview) {
     return;
   }
 
@@ -1977,6 +2013,11 @@ function scheduleMoleRepeatCheck() {
       return;
     }
 
+    if (!hasMoleEventTimeRemaining()) {
+      endMoleEvent();
+      return;
+    }
+
     triggerMoleTileAttack();
   }, GAME_CONFIG.moleRepeatDelayMs);
 }
@@ -1986,6 +2027,7 @@ function prepareRoundHazards() {
   const moleFirstAttackWillHappen = Math.random() < getMoleRoundFirstChance(round);
   moleAttacksTriggeredThisRound = 0;
   moleEventBurstActive = false;
+  moleEventEndsAt = 0;
   moleCurrentAttackIsPreview = false;
   moleEventTriggeredThisRound = !moleFirstAttackWillHappen;
   moleSwapInProgress = false;
@@ -2318,12 +2360,11 @@ function finishMoleAttack({ scheduleRepeat = true, endBurst = false } = {}) {
   moleSwapInProgress = false;
 
   if (endBurst) {
-    moleEventBurstActive = false;
-    restoreRoundBackgroundMusic();
-  }
-
-  if (scheduleRepeat) {
+    endMoleEvent();
+  } else if (scheduleRepeat && hasMoleEventTimeRemaining()) {
     scheduleMoleRepeatCheck();
+  } else if (moleEventBurstActive) {
+    endMoleEvent();
   }
 
   if (pendingReviewAfterMole || remainingTime <= 0) {
@@ -2423,9 +2464,16 @@ async function triggerMoleTileAttack() {
   moleSwapInProgress = true;
   moleAttacksTriggeredThisRound += 1;
   moleCurrentAttackIsPreview = round === GAME_CONFIG.molePreviewRound;
-  moleEventBurstActive = !moleCurrentAttackIsPreview;
 
-  if (!moleMusicPlayer) {
+  if (moleCurrentAttackIsPreview) {
+    moleEventBurstActive = false;
+    moleEventEndsAt = 0;
+  } else if (!hasMoleEventTimeRemaining()) {
+    moleEventBurstActive = true;
+    moleEventEndsAt = performance.now() + getMoleEventDurationMs(round);
+  }
+
+  if (!moleCurrentAttackIsPreview && !moleMusicPlayer) {
     startMoleEventMusic();
   }
 
