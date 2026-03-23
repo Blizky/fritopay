@@ -356,9 +356,9 @@ const LANGUAGE_STORAGE_KEY = "fritopay-language";
 const PROGRESS_STORAGE_KEY = "fritopay-progress";
 const MOLE_SPEED_STORAGE_KEY = "fritopay-mole-speed";
 const SIMULATED_START_ROUNDS = [5, 10, 15];
-const DEFAULT_MOLE_SPEED_PERCENT = 50;
-const MIN_MOLE_SPEED_PERCENT = 40;
-const MAX_MOLE_SPEED_PERCENT = 180;
+const DEFAULT_MOLE_SPEED_PERCENT = 100;
+const MIN_MOLE_SPEED_PERCENT = 50;
+const MAX_MOLE_SPEED_PERCENT = 200;
 
 const COPY = {
   en: {
@@ -630,7 +630,7 @@ function getMoleSpeedFactor() {
 }
 
 function scaleMoleTimingMs(baseMs, minimumMs = 40) {
-  return Math.max(minimumMs, Math.round(baseMs / Math.max(0.01, getMoleSpeedFactor())));
+  return Math.max(minimumMs, Math.round(baseMs * Math.max(0.01, getMoleSpeedFactor())));
 }
 
 function getDefaultStoredProgress() {
