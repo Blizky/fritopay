@@ -242,6 +242,7 @@ const splashPanel = document.getElementById("splashPanel");
 const splashText = document.getElementById("splashText");
 const introTimeNote = document.getElementById("introTimeNote");
 const playBtn = document.getElementById("playBtn");
+const landingStartLevel5Btn = document.getElementById("landingStartLevel5Btn");
 const clearCacheBtn = document.getElementById("clearCacheBtn");
 const startBtn = document.getElementById("startBtn");
 const introStartLevel5Btn = document.getElementById("introStartLevel5Btn");
@@ -1932,6 +1933,9 @@ function updateLanguageUI() {
   document.documentElement.lang = currentLanguage;
   timeoutFlash.textContent = copy("timeout");
   playBtn.textContent = copy("startPlaying");
+  if (landingStartLevel5Btn) {
+    landingStartLevel5Btn.textContent = copy("jumpToLevel", 5);
+  }
   clearCacheBtn.textContent = copy("clearCache");
   startBtn.textContent = copy("startRescuingCats");
   if (introStartLevel5Btn) {
@@ -3362,9 +3366,21 @@ function handleMoleRunnerWhack(event) {
   moleAttackTapped = true;
 }
 
-playBtn.addEventListener("click", () => {
+function startIntroFlow() {
   ensureAudio();
   showIntroScreen();
+}
+
+playBtn.addEventListener("click", startIntroFlow);
+playBtn.addEventListener("pointerup", event => {
+  event.preventDefault();
+  startIntroFlow();
+});
+
+landingStartLevel5Btn?.addEventListener("click", () => {
+  ensureAudio();
+  applySimulatedStartState(5);
+  beginRound();
 });
 
 simulatedStartList?.addEventListener("click", event => {
