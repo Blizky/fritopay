@@ -3372,10 +3372,6 @@ function startIntroFlow() {
 }
 
 playBtn.addEventListener("click", startIntroFlow);
-playBtn.addEventListener("pointerup", event => {
-  event.preventDefault();
-  startIntroFlow();
-});
 
 landingStartLevel5Btn?.addEventListener("click", () => {
   ensureAudio();
@@ -3413,6 +3409,9 @@ introStartLevel5Btn?.addEventListener("click", () => {
 languageToggle.addEventListener("click", handleLanguageToggleClick);
 landingLanguageToggle.addEventListener("click", handleLanguageToggleClick);
 moleSpeedSlider?.addEventListener("input", () => {
+  setMoleSpeedPercent(Number(moleSpeedSlider.value), { persist: true });
+});
+moleSpeedSlider?.addEventListener("change", () => {
   setMoleSpeedPercent(Number(moleSpeedSlider.value), { persist: true });
 });
 

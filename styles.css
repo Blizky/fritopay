@@ -1056,6 +1056,13 @@ body {
   box-shadow:
     0 18px 34px rgba(120, 97, 108, 0.22),
     inset 0 -5px 0 rgba(203, 185, 196, 0.3);
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.home-screen-card * {
+  pointer-events: auto;
 }
 
 .game.home-screen-active .topbar,
@@ -1175,11 +1182,14 @@ body {
 }
 
 .mole-speed-slider {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
   accent-color: #d88942;
   background: #fff;
   border-radius: 999px;
   cursor: pointer;
+  touch-action: pan-x;
 }
 
 .mole-speed-slider::-webkit-slider-runnable-track {
