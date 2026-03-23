@@ -330,9 +330,9 @@ let resultTimeBarTimeoutIds = [];
 let resultTimeBarFrameId = null;
 let resultTimeBarAnimationToken = 0;
 let trapOfferRevealTimeoutId = null;
-let muteControlUnlocked = false;
-let exitControlUnlocked = false;
-let scoreboardUnlocked = false;
+let muteControlUnlocked = true;
+let exitControlUnlocked = true;
+let scoreboardUnlocked = true;
 let moleCatsLostThisRound = 0;
 let currentRoundRescuableCats = targetCats;
 let currentRoundMissedCats = 0;
@@ -565,26 +565,14 @@ function getStoredPreferredLanguage() {
 
 function getDefaultStoredProgress() {
   return {
-    muteUnlocked: false,
-    exitUnlocked: false,
-    scoreboardUnlocked: false
+    muteUnlocked: true,
+    exitUnlocked: true,
+    scoreboardUnlocked: true
   };
 }
 
 function getStoredProgress() {
-  try {
-    const rawProgress = window.localStorage.getItem(PROGRESS_STORAGE_KEY);
-    if (!rawProgress) return getDefaultStoredProgress();
-
-    const parsedProgress = JSON.parse(rawProgress);
-    return {
-      muteUnlocked: Boolean(parsedProgress?.muteUnlocked),
-      exitUnlocked: Boolean(parsedProgress?.exitUnlocked),
-      scoreboardUnlocked: Boolean(parsedProgress?.scoreboardUnlocked)
-    };
-  } catch {
-    return getDefaultStoredProgress();
-  }
+  return getDefaultStoredProgress();
 }
 
 function persistStoredProgress() {
@@ -610,39 +598,10 @@ function clearStoredProgress() {
     window.localStorage.removeItem(PROGRESS_STORAGE_KEY);
   } catch {}
 
-  muteControlUnlocked = false;
-  exitControlUnlocked = false;
-  scoreboardUnlocked = false;
+  muteControlUnlocked = true;
+  exitControlUnlocked = true;
+  scoreboardUnlocked = true;
   cassetteCount = 0;
-}
-
-function simulatePermanentOfferPurchases(simulatedState, completedRound) {
-  if (
-    completedRound === GAME_CONFIG.muteOfferRound &&
-    !simulatedState.muteUnlocked &&
-    simulatedState.totalHairballs >= GAME_CONFIG.muteOfferCostHairballs
-  ) {
-    simulatedState.totalHairballs -= GAME_CONFIG.muteOfferCostHairballs;
-    simulatedState.muteUnlocked = true;
-  }
-
-  if (
-    completedRound === GAME_CONFIG.scoreboardOfferRound &&
-    !simulatedState.scoreboardUnlocked &&
-    simulatedState.totalHairballs >= GAME_CONFIG.scoreboardOfferCostHairballs
-  ) {
-    simulatedState.totalHairballs -= GAME_CONFIG.scoreboardOfferCostHairballs;
-    simulatedState.scoreboardUnlocked = true;
-  }
-
-  if (
-    completedRound === GAME_CONFIG.exitOfferRound &&
-    !simulatedState.exitUnlocked &&
-    simulatedState.totalHairballs >= GAME_CONFIG.exitOfferCostHairballs
-  ) {
-    simulatedState.totalHairballs -= GAME_CONFIG.exitOfferCostHairballs;
-    simulatedState.exitUnlocked = true;
-  }
 }
 
 function buildSimulatedStartState(startRound) {
@@ -655,15 +614,15 @@ function buildSimulatedStartState(startRound) {
     totalScore: 0,
     totalRescuedCats: 0,
     totalMissedCats: 0,
-    muteUnlocked: false,
-    exitUnlocked: false,
-    scoreboardUnlocked: false,
-  cassetteCount: 0,
-  currentTrapTierIndex: 0,
-  diamondTrapFailed: false,
-  trapInventory: [],
-  nextRoundTime: GAME_CONFIG.startingTimeSeconds,
-  nextRoundCats: GAME_CONFIG.startingCats
+    muteUnlocked: true,
+    exitUnlocked: true,
+    scoreboardUnlocked: true,
+    cassetteCount: 0,
+    currentTrapTierIndex: 0,
+    diamondTrapFailed: false,
+    trapInventory: [],
+    nextRoundTime: GAME_CONFIG.startingTimeSeconds,
+    nextRoundCats: GAME_CONFIG.startingCats
   };
 
   for (let completedRound = GAME_CONFIG.startingRound; completedRound < safeStartRound; completedRound++) {
@@ -678,8 +637,6 @@ function buildSimulatedStartState(startRound) {
       simulatedState.targetCats + GAME_CONFIG.catsAddedPerRound,
       getBoardSize(nextRoundNumber).tileCount
     );
-
-    simulatePermanentOfferPurchases(simulatedState, completedRound);
 
     simulatedState.round = nextRoundNumber;
     simulatedState.roundTime = nextRoundTime;
@@ -1608,9 +1565,11 @@ function createTileButton(index) {
     : `<span class="emoji">${tileData.emoji}</span>`;
 
   tile.addEventListener("click", () => {
+    const tileBlockedByMole = moleSwapInProgress && index === moleActiveTileIndex;
+
     if (
       reviewInProgress ||
-      moleSwapInProgress ||
+      tileBlockedByMole ||
       remainingTime <= 0 ||
       gameOver ||
       isPreGameScreenVisible() ||
@@ -2869,18 +2828,6 @@ function getSpecialOfferOptions(roundNumber = round) {
     return canShowTimeOffer() ? [getTimeOfferOption()] : [];
   }
 
-  if (roundNumber === GAME_CONFIG.muteOfferRound) {
-    if (!muteControlUnlocked) return [getMuteOfferOption()];
-  }
-
-  if (roundNumber === GAME_CONFIG.scoreboardOfferRound) {
-    if (!scoreboardUnlocked) return [getScoreboardOfferOption()];
-  }
-
-  if (roundNumber === GAME_CONFIG.exitOfferRound) {
-    if (!exitControlUnlocked) return [getExitOfferOption()];
-  }
-
   if (roundNumber === GAME_CONFIG.trapTeaseRound) {
     return [{
       kind: "trap",
@@ -2892,16 +2839,6 @@ function getSpecialOfferOptions(roundNumber = round) {
 
   if (roundNumber >= GAME_CONFIG.trapOfferRound && Math.random() < GAME_CONFIG.trapOfferChance) {
     const offerPool = [];
-
-    if (!muteControlUnlocked && roundNumber > GAME_CONFIG.muteOfferRound) {
-      offerPool.push(getMuteOfferOption());
-    }
-    if (!scoreboardUnlocked && roundNumber > GAME_CONFIG.scoreboardOfferRound) {
-      offerPool.push(getScoreboardOfferOption());
-    }
-    if (!exitControlUnlocked && roundNumber > GAME_CONFIG.exitOfferRound) {
-      offerPool.push(getExitOfferOption());
-    }
 
     if (roundNumber >= GAME_CONFIG.timeOfferStartsAtRound && canShowTimeOffer()) {
       offerPool.push(getTimeOfferOption());
@@ -2925,18 +2862,6 @@ function getSpecialOfferOptions(roundNumber = round) {
     }
 
     return [randomFrom(offerPool)];
-  }
-
-  if (
-    roundNumber > GAME_CONFIG.muteOfferRound &&
-    (!muteControlUnlocked || !scoreboardUnlocked || !exitControlUnlocked) &&
-    Math.random() < GAME_CONFIG.trapOfferChance
-  ) {
-    const catOffers = [];
-    if (!muteControlUnlocked) catOffers.push(getMuteOfferOption());
-    if (!scoreboardUnlocked && roundNumber > GAME_CONFIG.scoreboardOfferRound) catOffers.push(getScoreboardOfferOption());
-    if (!exitControlUnlocked && roundNumber > GAME_CONFIG.exitOfferRound) catOffers.push(getExitOfferOption());
-    return catOffers.length > 0 ? [randomFrom(catOffers)] : [];
   }
 
   return [];
