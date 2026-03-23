@@ -59,6 +59,14 @@ const GAME_CONFIG = {
   bonusYarnChanceAfterRound10: 0.7,
   // Hairballs added when the bonus yarn is selected.
   bonusYarnHairballs: 1,
+  // Start the memory bonus challenge from round 2 onward.
+  roundBonusStartsAtRound: 2,
+  // How many memorized emoji targets appear each challenge round.
+  roundBonusEmojiCount: 3,
+  // Seconds granted by the memory bonus time reward.
+  roundBonusTimeRewardSeconds: 3,
+  // Hairballs granted by the memory bonus hairball reward.
+  roundBonusHairballRewardCount: 2,
   // Start adding cassette tiles from this round onward.
   bonusCassetteStartsAtRound: 6,
   // Chance a cassette tile appears on eligible rounds.
@@ -183,6 +191,7 @@ const CASSETTE_MUSIC_TRACKS = Array.from(
   { length: GAME_CONFIG.maxCassetteMusicTracks },
   (_, index) => `sound/music/music${index + 1}.mp3`
 );
+const ROUND_BONUS_REWARD_KINDS = ["time", "hairballs", "trap"];
 
 const TRAP_TIERS = [
   {
@@ -271,6 +280,10 @@ const resultTimeBarFill = document.getElementById("resultTimeBarFill");
 const resultTimeBarLoss = document.getElementById("resultTimeBarLoss");
 const resultTimeBarGain = document.getElementById("resultTimeBarGain");
 const resultTimeBarValue = document.getElementById("resultTimeBarValue");
+const roundBonusPanel = document.getElementById("roundBonusPanel");
+const roundBonusTitle = document.getElementById("roundBonusTitle");
+const roundBonusItems = document.getElementById("roundBonusItems");
+const roundBonusText = document.getElementById("roundBonusText");
 const timeNote = document.getElementById("timeNote");
 const nextBtn = document.getElementById("nextBtn");
 const exitBtn = document.getElementById("exitBtn");
@@ -311,6 +324,10 @@ let trapInventory = [];
 let bonusClockEarnedThisRound = false;
 let clockTilesSelectedThisRound = 0;
 let cassetteTilesSelectedThisRound = 0;
+let activeRoundBonusChallenge = null;
+let upcomingRoundBonusChallenge = null;
+let collectedRoundBonusEmojis = new Set();
+let stolenRoundBonusEmojis = new Set();
 let currentSpecialOfferOptions = [];
 let currentSpecialOfferKind = "trap";
 let currentSpecialOfferSellerImage = "images/racoon.png";
@@ -389,12 +406,18 @@ const COPY = {
     dismissInsufficient: "Oh ok 😿",
     hairballs: value => `Hairballs: ${value}`,
     nextRoundTimeTitle: "Time for next round",
+    roundBonusTitle: "Bonus",
+    roundBonusText: "Collect these items to receive a special bonus.",
+    specialBonusLine: reward => `Special bonus: ${reward}`,
+    specialBonusRewardTime: value => `+${value} second${value === 1 ? "" : "s"}`,
+    specialBonusRewardHairballs: value => `${value} Hairball${value === 1 ? "" : "s"}`,
+    specialBonusRewardTrap: tierName => `1 ${tierName}`,
     hairballUnit: value => `Hairball${value === 1 ? "" : "s"}`,
     timeSummaryLabel: "Time",
     timeSummary: value => `Time: ${value} second${value === 1 ? "" : "s"}`,
     secondUnit: value => `second${value === 1 ? "" : "s"}`,
     scoreLabel: value => `Score: ${value}`,
-    perfectRescue: "This makes Frito sad",
+    perfectRescue: "Frito is upset",
     fritoLaughs: "Frito Laughs!",
     notBad: "This makes Frito happy",
     gameOver: "Game Over",
@@ -481,6 +504,12 @@ const COPY = {
     dismissInsufficient: "Ah, ok 😿",
     hairballs: value => `Bolas de pelo: ${value}`,
     nextRoundTimeTitle: "Tiempo para la próxima ronda",
+    roundBonusTitle: "Bonus",
+    roundBonusText: "Recoge estos objetos para recibir un bonus especial.",
+    specialBonusLine: reward => `Bonus especial: ${reward}`,
+    specialBonusRewardTime: value => `+${value} segundo${value === 1 ? "" : "s"}`,
+    specialBonusRewardHairballs: value => `${value} bola${value === 1 ? "" : "s"} de pelo`,
+    specialBonusRewardTrap: tierName => `1 ${tierName}`,
     hairballUnit: value => `bola${value === 1 ? "" : "s"} de pelo`,
     timeSummaryLabel: "Tiempo",
     timeSummary: value => `Tiempo: ${value} segundo${value === 1 ? "" : "s"}`,
@@ -702,10 +731,13 @@ function applySimulatedStartState(startRound) {
   moleCatsLostThisRound = 0;
   currentRoundRescuableCats = targetCats;
   currentRoundMissedCats = 0;
+  collectedRoundBonusEmojis = new Set();
+  stolenRoundBonusEmojis = new Set();
   hideTrapOffer();
   hideMoleRunner(true);
   applyBoardLayout(round);
   renderTrapInventory();
+  initializeRoundBonusChallenges(round);
 }
 
 async function clearBrowserCaches() {
@@ -835,6 +867,78 @@ function getTrapTierLabel(tierId, plural = false) {
   return value.replace(/^trampas /, "Trampa ").replace("normales", "normal");
 }
 
+function formatRoundBonusRewardLabel(reward) {
+  if (!reward) return "";
+
+  if (reward.kind === "time") {
+    return copy("specialBonusRewardTime", reward.seconds);
+  }
+
+  if (reward.kind === "hairballs") {
+    return copy("specialBonusRewardHairballs", reward.hairballs);
+  }
+
+  if (reward.kind === "trap") {
+    return copy("specialBonusRewardTrap", getTrapTierLabel(reward.tierId));
+  }
+
+  return "";
+}
+
+function renderRoundBonusPreview() {
+  if (!roundBonusPanel || !roundBonusTitle || !roundBonusItems || !roundBonusText) return;
+
+  const previewChallenge = !gameOver ? upcomingRoundBonusChallenge : null;
+  const shouldShow = Boolean(previewChallenge?.emojis?.length);
+
+  roundBonusTitle.textContent = copy("roundBonusTitle");
+  roundBonusText.textContent = copy("roundBonusText");
+  roundBonusItems.innerHTML = shouldShow
+    ? previewChallenge.emojis.map(emoji => `<span class="result-bonus-item">${emoji}</span>`).join("")
+    : "";
+  roundBonusPanel.classList.toggle("hidden", !shouldShow);
+}
+
+function resolveRoundBonusReward() {
+  if (!activeRoundBonusChallenge?.emojis?.length) {
+    return null;
+  }
+
+  if (stolenRoundBonusEmojis.size > 0) {
+    return null;
+  }
+
+  if (collectedRoundBonusEmojis.size !== activeRoundBonusChallenge.emojis.length) {
+    return null;
+  }
+
+  const rewardKind = randomFrom(ROUND_BONUS_REWARD_KINDS);
+
+  if (rewardKind === "time") {
+    nextRoundTime += GAME_CONFIG.roundBonusTimeRewardSeconds;
+    return {
+      kind: "time",
+      seconds: GAME_CONFIG.roundBonusTimeRewardSeconds
+    };
+  }
+
+  if (rewardKind === "hairballs") {
+    totalHairballs += GAME_CONFIG.roundBonusHairballRewardCount;
+    return {
+      kind: "hairballs",
+      hairballs: GAME_CONFIG.roundBonusHairballRewardCount
+    };
+  }
+
+  const tierId = TRAP_TIERS[currentTrapTierIndex].id;
+  trapInventory.push(tierId);
+  renderTrapInventory();
+  return {
+    kind: "trap",
+    tierId
+  };
+}
+
 function isPreGameScreenVisible() {
   return landingPanel.classList.contains("show") || introPanel.classList.contains("show");
 }
@@ -882,7 +986,7 @@ function formatBreakdownSeconds(value) {
 function formatTimeBarValueMarkup() {
   const delta = nextRoundTime - roundTime;
   if (delta === 0) {
-    return `${roundTime}`;
+    return `${roundTime} ${copy("secondUnit", roundTime)}`;
   }
 
   const deltaSign = delta > 0 ? "+" : "-";
@@ -891,7 +995,7 @@ function formatTimeBarValueMarkup() {
 
   return `${roundTime} ` +
     `<span class="time-summary-delta ${deltaClass}">${deltaSign} ${absoluteDelta}</span> = ` +
-    `${nextRoundTime}`;
+    `${nextRoundTime} ${copy("secondUnit", nextRoundTime)}`;
 }
 
 function clearResultTimeBarAnimation() {
@@ -1399,19 +1503,64 @@ function randomIntBetween(min, max) {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
 
-function buildTileData(type = "other") {
-  const skin = round >= 10 ? randomFrom(LATE_TILE_SKINS) : null;
+function pickUniqueRandomItems(items, count) {
+  const pool = [...items];
+  const picked = [];
+
+  while (pool.length > 0 && picked.length < count) {
+    const pickedIndex = randomIntBetween(0, pool.length - 1);
+    picked.push(pool[pickedIndex]);
+    pool.splice(pickedIndex, 1);
+  }
+
+  return picked;
+}
+
+function shouldUseRoundBonusForRound(roundNumber) {
+  return roundNumber >= GAME_CONFIG.roundBonusStartsAtRound;
+}
+
+function createRoundBonusChallenge(roundNumber = round + 1) {
+  if (!shouldUseRoundBonusForRound(roundNumber)) {
+    return null;
+  }
+
   return {
-    emoji:
-      type === "cat"
-        ? randomFrom(CAT_EMOJIS)
-        : type === "clock"
-          ? "⏰"
-          : type === "yarn"
-            ? "🧶"
-            : type === "cassette"
-              ? ""
-              : randomFrom(OTHER_EMOJIS),
+    emojis: pickUniqueRandomItems(OTHER_EMOJIS, GAME_CONFIG.roundBonusEmojiCount)
+  };
+}
+
+function initializeRoundBonusChallenges(currentRound = round) {
+  activeRoundBonusChallenge = createRoundBonusChallenge(currentRound);
+  upcomingRoundBonusChallenge = createRoundBonusChallenge(currentRound + 1);
+}
+
+function getRandomOtherEmoji(excludedEmojis = []) {
+  const filteredPool = OTHER_EMOJIS.filter(emoji => !excludedEmojis.includes(emoji));
+  const source = filteredPool.length > 0 ? filteredPool : OTHER_EMOJIS;
+  return randomFrom(source);
+}
+
+function buildTileData(type = "other", {
+  emoji = "",
+  excludedOtherEmojis = [],
+  isRoundBonusItem = false
+} = {}) {
+  const skin = round >= 10 ? randomFrom(LATE_TILE_SKINS) : null;
+  const resolvedEmoji = emoji || (
+    type === "cat"
+      ? randomFrom(CAT_EMOJIS)
+      : type === "clock"
+        ? "⏰"
+        : type === "yarn"
+          ? "🧶"
+          : type === "cassette"
+            ? ""
+            : getRandomOtherEmoji(excludedOtherEmojis)
+  );
+
+  return {
+    emoji: resolvedEmoji,
     imageSrc:
       type === "clock"
         ? "images/time.png"
@@ -1424,6 +1573,8 @@ function buildTileData(type = "other") {
     isClock: type === "clock",
     isYarn: type === "yarn",
     isCassette: type === "cassette",
+    isRoundBonusItem,
+    roundBonusEmoji: isRoundBonusItem ? resolvedEmoji : "",
     skin,
     selected: false,
     state: "idle"
@@ -1497,45 +1648,64 @@ function buildSpacedCatIndexes(totalCount, catCount, colCount) {
 function buildRoundData() {
   const catCount = Math.min(targetCats, currentTileCount);
   const catIndexes = new Set(buildSpacedCatIndexes(currentTileCount, catCount, currentCols));
+  const roundBonusIndexes = new Map();
   let clockIndex = -1;
   let yarnIndex = -1;
   let cassetteIndex = -1;
   const lateBonusRound = round >= 11;
   const openIndexes = Array.from({ length: currentTileCount }, (_, index) => index)
     .filter(index => !catIndexes.has(index));
+  const challengeEmojis = activeRoundBonusChallenge?.emojis || [];
+  let remainingIndexes = [...openIndexes];
+
+  challengeEmojis.forEach(emoji => {
+    if (remainingIndexes.length === 0) return;
+    const selectedIndex = randomFrom(remainingIndexes);
+    roundBonusIndexes.set(selectedIndex, emoji);
+    remainingIndexes = remainingIndexes.filter(index => index !== selectedIndex);
+  });
 
   if (
     round >= GAME_CONFIG.bonusClockStartsAtRound &&
     Math.random() < (lateBonusRound ? GAME_CONFIG.bonusClockChanceAfterRound10 : GAME_CONFIG.bonusClockChance) &&
-    openIndexes.length > 0
+    remainingIndexes.length > 0
   ) {
-    clockIndex = randomFrom(openIndexes);
+    clockIndex = randomFrom(remainingIndexes);
+    remainingIndexes = remainingIndexes.filter(index => index !== clockIndex);
   }
 
-  const remainingIndexes = openIndexes.filter(index => index !== clockIndex);
   if (
     round >= GAME_CONFIG.bonusYarnStartsAtRound &&
     Math.random() < (lateBonusRound ? GAME_CONFIG.bonusYarnChanceAfterRound10 : GAME_CONFIG.bonusYarnChance) &&
     remainingIndexes.length > 0
   ) {
     yarnIndex = randomFrom(remainingIndexes);
+    remainingIndexes = remainingIndexes.filter(index => index !== yarnIndex);
   }
 
-  const cassetteIndexes = remainingIndexes.filter(index => index !== yarnIndex);
   if (
     round >= GAME_CONFIG.bonusCassetteStartsAtRound &&
     Math.random() < GAME_CONFIG.bonusCassetteChance &&
-    cassetteIndexes.length > 0
+    remainingIndexes.length > 0
   ) {
-    cassetteIndex = randomFrom(cassetteIndexes);
+    cassetteIndex = randomFrom(remainingIndexes);
   }
 
   return Array.from({ length: currentTileCount }, (_, index) => {
     if (catIndexes.has(index)) return buildTileData("cat");
+    if (roundBonusIndexes.has(index)) {
+      const roundBonusEmoji = roundBonusIndexes.get(index);
+      return buildTileData("other", {
+        emoji: roundBonusEmoji,
+        isRoundBonusItem: true
+      });
+    }
     if (index === clockIndex) return buildTileData("clock");
     if (index === yarnIndex) return buildTileData("yarn");
     if (index === cassetteIndex) return buildTileData("cassette");
-    return buildTileData("other");
+    return buildTileData("other", {
+      excludedOtherEmojis: challengeEmojis
+    });
   });
 }
 
@@ -1643,6 +1813,8 @@ function createBoard() {
   currentRoundRescuableCats = targetCats;
   currentRoundMissedCats = 0;
   yarnTilesSelectedThisRound = 0;
+  collectedRoundBonusEmojis = new Set();
+  stolenRoundBonusEmojis = new Set();
   pendingReviewAfterMole = false;
   if (pickedLabel) {
     pickedLabel.textContent = copy("selectedTiles", 0);
@@ -1720,6 +1892,10 @@ function resetGameState() {
   bonusClockEarnedThisRound = false;
   clockTilesSelectedThisRound = 0;
   cassetteTilesSelectedThisRound = 0;
+  activeRoundBonusChallenge = null;
+  upcomingRoundBonusChallenge = null;
+  collectedRoundBonusEmojis = new Set();
+  stolenRoundBonusEmojis = new Set();
   earnedHairballThisRound = false;
   yarnHairballsEarnedThisRound = 0;
   yarnTilesSelectedThisRound = 0;
@@ -1742,6 +1918,7 @@ function resetGameState() {
   hideTrapOffer();
   applyBoardLayout(round);
   renderTrapInventory();
+  initializeRoundBonusChallenges(round);
 }
 
 function getScaledReviewStepDelay() {
@@ -1763,6 +1940,7 @@ function updateSummaryTexts() {
   timeSummaryText.textContent = copy("nextRoundTimeTitle");
   setResultTimeBarValue(formatTimeBarValueMarkup());
   applyResultTimeBarState();
+  renderRoundBonusPreview();
 }
 
 function updateResultTitleAppearance({ perfect = false } = {}) {
@@ -1783,8 +1961,12 @@ function getRoundResultTitle() {
 }
 
 function renderGameOverText() {
+  const specialBonusMarkup = currentRoundResultSummary?.specialBonusReward
+    ? `<div class="result-special-bonus">${copy("specialBonusLine", formatRoundBonusRewardLabel(currentRoundResultSummary.specialBonusReward))}</div>`
+    : "";
   resultText.classList.add("game-over-text");
   resultText.innerHTML = `
+    ${specialBonusMarkup}
     <div class="game-over-line" style="--line-delay: 0ms;"><strong>${copy("totalCatsRescued", totalRescuedCats)}</strong></div>
     <div class="game-over-line" style="--line-delay: 90ms;"><strong>${copy("totalCatsMissed", totalMissedCats)}</strong></div>
     <div class="game-over-line game-over-line-score" style="--line-delay: 180ms;"><strong>${copy("totalScore", totalScore)}</strong></div>
@@ -2240,38 +2422,31 @@ function createMoleDirtBurst(metrics, direction = "out") {
   setTimeout(() => burst.remove(), 520);
 }
 
-function isMoleStealableTile(tile) {
-  return Boolean(tile && (tile.isCat || tile.isClock || tile.isYarn || tile.isCassette));
-}
-
-function getMoleTargetIndexes(wantStealable) {
+function getMoleTargetIndexes() {
   return tiles.reduce((indexes, tile, index) => {
-    if (!tile || tile.state !== "idle" || moleUsedTileIndexes.has(index)) {
+    if (!tile || tile.state !== "idle") {
       return indexes;
     }
 
-    if (isMoleStealableTile(tile) === wantStealable) {
-      indexes.push(index);
-    }
-
+    indexes.push(index);
     return indexes;
   }, []);
 }
 
 function pickMoleTargetIndex() {
-  const preferStealable = Math.random() < GAME_CONFIG.moleCatTargetChance;
-  let indexes = getMoleTargetIndexes(preferStealable);
-
-  if (indexes.length === 0) {
-    indexes = getMoleTargetIndexes(!preferStealable);
-  }
-
-  if (indexes.length === 0) {
+  const idleIndexes = getMoleTargetIndexes();
+  if (idleIndexes.length === 0) {
     return -1;
   }
 
+  let indexes = idleIndexes.filter(index => !moleUsedTileIndexes.has(index));
+  if (indexes.length === 0) {
+    moleUsedTileIndexes.clear();
+    indexes = idleIndexes;
+  }
+
   const targetIndex = randomFrom(indexes);
-  moleAttackTargetIsStealable = isMoleStealableTile(tiles[targetIndex]);
+  moleAttackTargetIsStealable = true;
   moleAttackTargetIsCat = Boolean(tiles[targetIndex]?.isCat);
   moleUsedTileIndexes.add(targetIndex);
   return targetIndex;
@@ -2353,13 +2528,18 @@ function stealMoleTargetTile(tileIndex) {
   const tile = tiles[tileIndex];
   const tileEl = boardEl.children[tileIndex];
 
-  if (!tile || !tileEl || tile.state !== "idle" || !isMoleStealableTile(tile)) {
+  if (!tile || !tileEl || tile.state !== "idle") {
     return;
   }
 
   tile.selected = false;
   tile.state = "stolen";
-  moleCatsLostThisRound += 1;
+  if (tile.isCat) {
+    moleCatsLostThisRound += 1;
+  }
+  if (tile.isRoundBonusItem && tile.roundBonusEmoji) {
+    stolenRoundBonusEmojis.add(tile.roundBonusEmoji);
+  }
   playTrack("moleSteal", { volume: 0.95 });
   tileEl.classList.remove("selected");
   tileEl.classList.add("locked", "mole-shake");
@@ -2463,14 +2643,6 @@ function waitForMoleAttackPhase(tileIndex, durationMs) {
   });
 }
 
-function getMoleSearchRepeatDelayMs() {
-  if (Math.random() < GAME_CONFIG.moleSearchFastRepeatChance) {
-    return GAME_CONFIG.moleSearchFastRepeatDelayMs;
-  }
-
-  return GAME_CONFIG.moleRepeatDelayMs;
-}
-
 async function resolveMoleHit(tileIndex) {
   markMoleHit(tileIndex);
   playTrack("moleHit", { volume: 0.95 });
@@ -2525,8 +2697,7 @@ async function triggerMoleTileAttack() {
 
   moleActiveTileIndex = tileIndex;
   moleAttackTapped = false;
-  const isSearchTile = !moleCurrentAttackIsPreview && !moleAttackTargetIsStealable;
-  const tapWindowMs = isSearchTile
+  const tapWindowMs = moleCurrentAttackIsPreview
     ? GAME_CONFIG.moleSearchTapWindowMs
     : GAME_CONFIG.moleTapWindowMs;
   const riseMs = GAME_CONFIG.molePopupRiseMs;
@@ -2558,7 +2729,9 @@ async function triggerMoleTileAttack() {
   }
   if (phaseResult !== "elapsed") return;
 
-  if (!moleCurrentAttackIsPreview && moleAttackTargetIsStealable) {
+  moleRunner.classList.remove("tappable", "attackable");
+
+  if (!moleCurrentAttackIsPreview) {
     if (moleAttackTargetIsCat) {
       const trapSavedTile = await resolveTrapDefense(tileIndex);
 
@@ -2581,15 +2754,10 @@ async function triggerMoleTileAttack() {
     return;
   }
 
-  const repeatDelayMs = !moleCurrentAttackIsPreview && !moleAttackTargetIsStealable
-    ? getMoleSearchRepeatDelayMs()
-    : GAME_CONFIG.moleRepeatDelayMs;
-
   await animateMoleRunnerDown();
   finishMoleAttack({
     scheduleRepeat: moleEventBurstActive,
-    endBurst: !moleEventBurstActive,
-    repeatDelayMs
+    endBurst: !moleEventBurstActive
   });
 }
 
@@ -2640,6 +2808,15 @@ async function startReview() {
       cassetteTilesSelectedThisRound++;
       cassetteCount = clamp(cassetteCount + 1, 0, GAME_CONFIG.maxCassetteMusicTracks - 1);
       persistStoredProgress();
+      t.state = "bonus";
+      t.selected = false;
+      el.classList.remove("selected");
+      el.classList.add("good");
+      fanfare(el);
+    } else if (t.isRoundBonusItem && t.state === "idle") {
+      if (t.roundBonusEmoji) {
+        collectedRoundBonusEmojis.add(t.roundBonusEmoji);
+      }
       t.state = "bonus";
       t.selected = false;
       el.classList.remove("selected");
@@ -3040,8 +3217,13 @@ function renderRoundResultText() {
     return;
   }
 
+  const specialBonusMarkup = currentRoundResultSummary.specialBonusReward
+    ? `<div class="result-special-bonus">${copy("specialBonusLine", formatRoundBonusRewardLabel(currentRoundResultSummary.specialBonusReward))}</div>`
+    : "";
+
   resultText.classList.remove("game-over-text");
   resultText.innerHTML = `
+    ${specialBonusMarkup}
     ${currentRoundResultSummary.perfectRescue ? `
       <div class="result-free-hairball">${copy("freeHairballWon")}</div>
       <div class="result-free-hairball">${copy("perfectRescueTimeWon", GAME_CONFIG.perfectRescueBonusSeconds)}</div>
@@ -3116,6 +3298,7 @@ function showResult() {
   let shouldRevealOffer = false;
   let delta = 0;
   let clockDelta = 0;
+  let specialBonusReward = null;
 
   stopRoundSoundtrack();
 
@@ -3153,6 +3336,7 @@ function showResult() {
   }
 
   nextRoundTime = roundTime + delta + clockDelta;
+  specialBonusReward = resolveRoundBonusReward();
   gameOver = nextRoundTime < GAME_CONFIG.minimumNextRoundTimeSeconds;
   resultTitle.textContent = getRoundResultTitle();
   updateResultTitleAppearance({ perfect: !gameOver && perfectRescue });
@@ -3188,7 +3372,8 @@ function showResult() {
     clockPoints: clockTilesSelectedThisRound,
     cassettesFound: cassetteTilesSelectedThisRound,
     cassettePoints: cassetteTilesSelectedThisRound * 5,
-    perfectRescue
+    perfectRescue,
+    specialBonusReward
   };
   updateSummaryTexts();
   updateScoreDisplay();
@@ -3271,6 +3456,8 @@ function nextRound() {
   roundTime = nextRoundTime;
   targetCats = nextRoundCats;
   round++;
+  activeRoundBonusChallenge = upcomingRoundBonusChallenge;
+  upcomingRoundBonusChallenge = createRoundBonusChallenge(round + 1);
   beginRound();
 }
 
@@ -3347,6 +3534,9 @@ trapOfferRows?.addEventListener("click", event => {
   const purchaseCost = selectedOption.kind === "time"
     ? getTimeOfferCost()
     : selectedOption.cost;
+  const purchasedSeconds = selectedOption.kind === "time"
+    ? getTimeOfferSeconds(purchaseCost)
+    : 0;
 
   if (totalHairballs < purchaseCost) {
     showTrapOfferInsufficient();
@@ -3357,7 +3547,6 @@ trapOfferRows?.addEventListener("click", event => {
   playTrack("buff", { volume: 0.95 });
 
   if (selectedOption.kind === "time") {
-    const purchasedSeconds = getTimeOfferSeconds();
     nextRoundTime += purchasedSeconds;
     showPurchasedOfferSummary({
       kind: "time",

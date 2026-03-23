@@ -450,9 +450,28 @@ body {
 }
 
 .tile.mole-stolen {
-  opacity: 0.28;
   transform: scale(0.94);
   animation: moleTileFade 0.32s ease-out forwards;
+}
+
+.tile.mole-stolen::after {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  z-index: 2;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 52%, rgba(98, 62, 28, 0.18) 0%, rgba(98, 62, 28, 0) 58%),
+    url("svg/dirt_stain.svg") center / 122% 122% no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  animation: moleTileStainIn 0.32s ease-out forwards;
+}
+
+.tile.mole-stolen .emoji,
+.tile.mole-stolen .tile-asset {
+  opacity: 0.14;
+  filter: grayscale(0.18) saturate(0.5);
 }
 
 .mole-stink {
@@ -461,6 +480,7 @@ body {
   bottom: 4px;
   font-size: 1rem;
   pointer-events: none;
+  z-index: 3;
   animation: moleStinkRise 0.9s ease-out forwards;
 }
 
@@ -506,6 +526,7 @@ body {
   padding-top: 3px;
   line-height: 1;
   transform: scale(1.36);
+  transition: opacity 0.32s ease-out, filter 0.32s ease-out;
 }
 
 .tile-asset {
@@ -516,6 +537,7 @@ body {
   max-height: 72%;
   object-fit: contain;
   pointer-events: none;
+  transition: opacity 0.32s ease-out, filter 0.32s ease-out;
 }
 
 .tile-asset-bonus {
@@ -1963,6 +1985,64 @@ body {
   pointer-events: none;
 }
 
+.result-bonus-preview {
+  width: min(100%, 320px);
+  display: grid;
+  gap: 8px;
+  margin: 2px auto 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(185, 157, 101, 0.28);
+  text-align: center;
+}
+
+.result-bonus-preview.hidden {
+  display: none;
+}
+
+.result-bonus-title {
+  color: #6c5640;
+  font-size: 0.98rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.result-bonus-items {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.result-bonus-item {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(255, 248, 234, 0.9);
+  border: 2px solid rgba(221, 198, 181, 0.92);
+  box-shadow:
+    0 8px 16px rgba(120, 97, 108, 0.08),
+    inset 0 -2px 0 rgba(221, 198, 181, 0.22);
+  font-size: 1.48rem;
+  line-height: 1;
+}
+
+.result-bonus-copy {
+  color: #7a6752;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.result-special-bonus {
+  margin-top: 4px;
+  color: #b66a1f;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
 .time-summary-delta {
   font-weight: 900;
   color: #ffffff;
@@ -2246,12 +2326,23 @@ body {
 
 @keyframes moleTileFade {
   0% {
-    opacity: 1;
     transform: scale(1);
+    filter: saturate(1) brightness(1);
   }
   100% {
-    opacity: 0.28;
     transform: scale(0.94);
+    filter: saturate(0.56) brightness(0.82);
+  }
+}
+
+@keyframes moleTileStainIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) rotate(-3deg);
+  }
+  100% {
+    opacity: 0.9;
+    transform: scale(1) rotate(0deg);
   }
 }
 
