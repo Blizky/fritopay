@@ -14,7 +14,7 @@ const GAME_CONFIG = {
   // How many new cat targets get added after a perfect rescue.
   catsAddedPerRound: 1,
   // Time bonus for rescuing every cat in the round.
-  perfectRescueBonusSeconds: 3,
+  perfectRescueBonusSeconds: 1,
   // Start offering the mole trap from this round onward.
   trapOfferRound: 7,
   // The first fake trap offer appears at this round.
@@ -106,7 +106,7 @@ const GAME_CONFIG = {
   // Chance that the mole appears once during round 15 and beyond.
   moleRound15PlusChance: 0.9,
   // Wait this long after a mole attack before it can return in the same round.
-  moleRepeatDelayMs: 500,
+  moleRepeatDelayMs: 120,
   // Point in the round when the mole check happens.
   moleTriggerAtTimeRatio: 0.5,
   // Start making the mole trigger earlier from this round onward.
@@ -118,19 +118,25 @@ const GAME_CONFIG = {
   // Chance that a mole attack targets a cat tile first.
   moleCatTargetChance: 0.25,
   // Time for the mole to pop up over a tile.
-  molePopupRiseMs: 200,
-  // First pause after the mole pops up.
-  molePopupPauseMs: 250,
-  // Second pause after the mole turns around.
-  molePopupTurnPauseMs: 300,
-  // How long the player gets to whack the mole once it is fully up.
-  moleTapWindowMs: 1000,
+  molePopupRiseMs: 150,
+  // First pause after the mole pops up on a cat-threat tile.
+  molePopupPauseMs: 140,
+  // Shorter pause while the mole scans a non-cat tile.
+  moleSearchPauseMs: 90,
+  // Second pause after the mole turns around on a cat-threat tile.
+  molePopupTurnPauseMs: 160,
+  // Shorter second pause while the mole scans a non-cat tile.
+  moleSearchTurnPauseMs: 110,
+  // How long the player gets to whack the mole once it is fully up on a cat-threat tile.
+  moleTapWindowMs: 420,
+  // Shorter fully-up window while the mole is only scanning a non-cat tile.
+  moleSearchTapWindowMs: 220,
   // How long the hit flash and shake stays on the mole before it disappears.
-  moleHitImpactMs: 250,
+  moleHitImpactMs: 200,
   // How long the tile shakes before a cat is marked as stolen.
-  moleStealShakeMs: 200,
+  moleStealShakeMs: 140,
   // How long the mole takes to duck away after an attack.
-  moleExitMs: 200
+  moleExitMs: 150
 };
 
 const CAT_EMOJIS = ["🐱", "🐈", "🐈‍⬛", "😺", "😸", "😻", "😹", "🙀", "😿", "😽", "😾", "😼"];
@@ -2432,6 +2438,16 @@ async function triggerMoleTileAttack() {
 
   moleActiveTileIndex = tileIndex;
   moleAttackTapped = false;
+  const isSearchTile = !moleCurrentAttackIsPreview && !moleAttackTargetIsCat;
+  const popupPauseMs = isSearchTile
+    ? GAME_CONFIG.moleSearchPauseMs
+    : GAME_CONFIG.molePopupPauseMs;
+  const popupTurnPauseMs = isSearchTile
+    ? GAME_CONFIG.moleSearchTurnPauseMs
+    : GAME_CONFIG.molePopupTurnPauseMs;
+  const tapWindowMs = isSearchTile
+    ? GAME_CONFIG.moleSearchTapWindowMs
+    : GAME_CONFIG.moleTapWindowMs;
 
   const tileMetrics = getMoleTileMetrics(tileIndex);
   if (!tileMetrics) {
@@ -2452,7 +2468,7 @@ async function triggerMoleTileAttack() {
   }
   if (phaseResult !== "elapsed") return;
 
-  phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.molePopupPauseMs);
+  phaseResult = await waitForMoleAttackPhase(tileIndex, popupPauseMs);
   if (phaseResult === "hit") {
     await resolveMoleHit(tileIndex);
     return;
@@ -2468,7 +2484,7 @@ async function triggerMoleTileAttack() {
   }
   if (phaseResult !== "elapsed") return;
 
-  phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.molePopupTurnPauseMs);
+  phaseResult = await waitForMoleAttackPhase(tileIndex, popupTurnPauseMs);
   if (phaseResult === "hit") {
     await resolveMoleHit(tileIndex);
     return;
@@ -2485,7 +2501,7 @@ async function triggerMoleTileAttack() {
   if (phaseResult !== "elapsed") return;
 
   moleRunner.classList.add("tappable");
-  phaseResult = await waitForMoleAttackPhase(tileIndex, GAME_CONFIG.moleTapWindowMs);
+  phaseResult = await waitForMoleAttackPhase(tileIndex, tapWindowMs);
   if (phaseResult === "hit") {
     await resolveMoleHit(tileIndex);
     return;
